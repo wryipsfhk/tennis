@@ -33,7 +33,11 @@ function jsonBinHeaders(config, write = false) {
 export default async (request) => {
   const config = configuration();
   if (!config.configured) {
-    return response(503, {error: "Netlify 尚未配置 JSONBin 环境变量。"});
+    const missing = [
+      !config.binId ? "JSONBIN_BIN_ID" : "",
+      !config.accessKey && !config.masterKey ? "JSONBIN_MASTER_KEY" : "",
+    ].filter(Boolean);
+    return response(503, {error: `Netlify 缺少环境变量：${missing.join("、")}`, missing});
   }
 
   try {

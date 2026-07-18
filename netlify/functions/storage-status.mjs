@@ -6,7 +6,8 @@ export default async () => {
   const headers = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"};
 
   if (!configured) {
-    return new Response(JSON.stringify({configured: false, connected: false, backend: "none", message: "JSONBin 尚未配置"}), {status: 200, headers});
+    const missing = [!binId ? "JSONBIN_BIN_ID" : "", !accessKey && !masterKey ? "JSONBIN_MASTER_KEY" : ""].filter(Boolean);
+    return new Response(JSON.stringify({configured: false, connected: false, backend: "none", message: `缺少：${missing.join("、")}`, missing}), {status: 200, headers});
   }
 
   try {
