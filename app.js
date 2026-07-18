@@ -44,7 +44,7 @@ function renderStorageStatus(status = storageState) {
   element.classList.toggle('is-backup', Boolean(storageState.configured && !storageState.connected));
   const label = storageState.connected
     ? 'JSONBin 已同步'
-    : storageState.configured ? '云端离线 · 本机已备份' : '等待连接 JSONBin';
+    : storageState.configured ? (storageState.backend === 'sqlite-backup' ? '云端离线 · 本机已备份' : '云端连接失败 · 检查配置') : '等待连接 JSONBin';
   element.querySelector('.storage-status-copy').textContent = label;
   element.title = storageState.message || label;
 }
@@ -400,8 +400,9 @@ document.querySelector('#matchDate').value=localDateValue();document.querySelect
 async function initializeApp() {
   try {
     const response = await fetch('/api/accounts', {cache:'no-store'});
-    if (!response.ok) throw new Error('数据库读取失败');
-    accountsCache = await response.json();
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || '数据库读取失败');
+    accountsCache = result;
     let legacy = {};
     try { legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)) || {}; } catch {}
     if (!Object.keys(accountsCache).length && Object.keys(legacy).length) {
@@ -411,8 +412,8 @@ async function initializeApp() {
     localStorage.removeItem(LEGACY_STORAGE_KEY);
     await refreshStorageStatus();
     if (currentAccount()) openApp();
-  } catch {
-    setError('#loginError','无法连接网站数据库，请确认服务器正在运行。');
+  } catch (error) {
+    setError('#loginError',error.message || '无法连接网站数据库，请确认服务器正在运行。');
   }
 }
 initializeApp();

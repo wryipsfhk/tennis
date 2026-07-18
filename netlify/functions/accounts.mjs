@@ -12,8 +12,11 @@ function response(status, payload) {
 
 function configuration() {
   const binId = (process.env.JSONBIN_BIN_ID || "").trim();
-  const accessKey = (process.env.JSONBIN_ACCESS_KEY || "").trim();
-  const masterKey = (process.env.JSONBIN_MASTER_KEY || "").trim();
+  const explicitAccessKey = (process.env.JSONBIN_ACCESS_KEY || "").trim();
+  const configuredMasterKey = (process.env.JSONBIN_MASTER_KEY || "").trim();
+  const inferredAccessKey = !explicitAccessKey && configuredMasterKey && !configuredMasterKey.startsWith("$2") ? configuredMasterKey : "";
+  const accessKey = explicitAccessKey || inferredAccessKey;
+  const masterKey = accessKey ? "" : configuredMasterKey;
   return {binId, accessKey, masterKey, configured: Boolean(binId && (accessKey || masterKey))};
 }
 
