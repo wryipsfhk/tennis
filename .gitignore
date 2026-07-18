@@ -1,0 +1,10 @@
+data/*.db
+.DS_Store
+data/*.db-shm
+data/*.db-wal
+__pycache__/
+.venv/
+.env
+data/uploads/
+data/analysis/
+data/.mpl/

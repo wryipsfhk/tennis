@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#087f73" />
+  <title>网球成长记录</title>
+  <link rel="stylesheet" href="styles.css?v=20260717-14" />
+</head>
+<body>
+  <section class="login-page" id="loginPage" aria-label="登录">
+    <div class="login-brand">
+      <div class="login-copy">
+        <span class="eyebrow">每一分，都算成长</span>
+        <h1>把赛场上的<br><em>感觉</em>，变成看得见的进步。</h1>
+        <p>记录比分与赛后感受，让每一次复盘都有依据、有方向、有下一步。</p>
+      </div>
+      <div class="court-mark" aria-hidden="true">
+        <div class="court-line court-line--v"></div>
+        <div class="court-line court-line--h"></div>
+        <div class="ball-shadow"></div>
+      </div>
+    </div>
+
+    <div class="login-panel">
+      <form class="login-card" id="loginForm">
+        <span class="eyebrow eyebrow--green">欢迎回来</span>
+        <h2>继续你的比赛记录</h2>
+        <p class="muted">登录后查看个人复盘与成长趋势</p>
+        <label class="field">
+          <span>邮箱</span>
+          <input id="email" type="email" placeholder="name@example.com" autocomplete="email" required />
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <span class="password-wrap">
+            <input id="password" type="password" placeholder="请输入密码" minlength="6" autocomplete="current-password" required />
+            <button class="text-icon" id="togglePassword" type="button" aria-label="显示密码">显示</button>
+          </span>
+        </label>
+        <div class="login-options">
+          <label class="check"><input type="checkbox" checked /><span>保持登录</span></label>
+          <button class="link-button" id="forgotOpen" type="button">忘记密码？</button>
+        </div>
+        <p class="form-error" id="loginError" role="alert"></p>
+        <button class="primary-button primary-button--wide" type="submit">登录我的账户 <span>→</span></button>
+        <p class="signup">还没有账户？<button type="button" class="link-button" id="signupButton">创建账户</button></p>
+      </form>
+    </div>
+  </section>
+
+  <div class="app-shell" id="appShell" hidden>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <a class="brand" href="#" aria-label="返回主页"><span class="brand-ball"></span></a>
+        <button class="sidebar-close" id="sidebarClose" aria-label="关闭菜单">×</button>
+      </div>
+      <div class="player-mini">
+        <div class="avatar" id="userAvatar">你</div>
+        <div><strong id="userName">用户</strong><span id="userEmail">尚未登录</span></div>
+      </div>
+      <nav class="side-nav" aria-label="主要功能">
+        <p>比赛中心</p>
+        <button type="button" class="nav-item active" data-view="overview"><span class="nav-icon">⌂</span>最近战况</button>
+        <button type="button" class="nav-item" data-view="new-match"><span class="nav-icon">＋</span>记录新比赛</button>
+        <button type="button" class="nav-item" data-view="analysis"><span class="nav-icon">◎</span>动作分析</button>
+        <button type="button" class="nav-item" data-view="history"><span class="nav-icon">↗</span>成长趋势</button>
+        <p>我的空间</p>
+        <button type="button" class="nav-item" data-view="matches"><span class="nav-icon">≡</span>全部比赛</button>
+        <button type="button" class="nav-item" data-view="calendar"><span class="nav-icon">□</span>比赛日历</button>
+        <button type="button" class="nav-item" data-view="goals"><span class="nav-icon">◇</span>训练目标<span class="nav-badge goal-badge" id="goalBadge" hidden>0</span></button>
+        <button type="button" class="nav-item" data-view="exercises"><span class="nav-icon">✓</span>训练建议<span class="nav-badge" id="exerciseBadge" hidden>0</span></button>
+      </nav>
+      <div class="storage-status" id="storageStatus" aria-live="polite">
+        <span class="storage-status-dot"></span>
+        <span class="storage-status-copy">正在检查云端存储</span>
+      </div>
+      <button class="logout" id="logoutButton">↪ 退出登录</button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" aria-label="打开菜单">☰</button>
+        <div class="top-title"><span id="pageKicker">今天</span><strong id="pageTitle">下午好</strong></div>
+        <div class="top-actions">
+          <button type="button" class="quick-add" data-view="new-match">＋ 记录比赛</button>
+        </div>
+      </header>
+
+      <div class="view active" id="overviewView">
+        <section class="empty-dashboard" id="emptyDashboard">
+          <div class="empty-court" aria-hidden="true"><span></span><i></i><b></b></div>
+          <div class="empty-copy"><span class="eyebrow eyebrow--green">从第一场开始</span><h1>你的球场，现在还是空白。</h1><p>记录比赛比分和真实感受。数据会从你亲自添加的第一场比赛开始累积。</p><div class="empty-actions"><button class="primary-button" data-view="new-match">记录第一场比赛</button></div></div>
+        </section>
+        <section class="user-dashboard" id="userDashboard" hidden>
+          <div class="section-title"><div><span class="eyebrow eyebrow--green">你的真实记录</span><h2 id="dashboardGreeting">最近比赛</h2></div><button class="outline-button" data-view="new-match">＋ 添加比赛</button></div>
+          <div class="real-stats"><article><span>已记录比赛</span><strong id="totalMatches">0</strong><small>场</small></article><article><span>本月胜率</span><strong id="monthlyWinRate">—</strong><small id="monthlyWinRateUnit"></small></article><article><span>最长连胜</span><strong id="longestWinStreak">0</strong><small>场</small></article><article><span>最近满意度</span><strong id="averageSatisfaction">—</strong></article></div>
+          <div class="real-match-list" id="recentMatches"></div>
+        </section>
+        <button class="next-match-banner" id="nextMatchBanner" data-view="calendar" hidden><span>下一场比赛</span><strong id="nextMatchCountdown"></strong><small id="nextMatchInfo"></small><b>查看日历 →</b></button>
+        <section class="hero-grid" hidden>
+          <article class="court-card">
+            <div class="court-copy">
+              <span class="eyebrow">过去 30 天</span>
+              <h1>你的反拍，<br>正在成为<em>武器。</em></h1>
+              <p>相持稳定性连续三场上升。下一场，把注意力放在击球后的回位。</p>
+              <button class="light-button" data-view="matches">查看比赛记录 <span>→</span></button>
+            </div>
+            <div class="mini-court" aria-hidden="true">
+              <div class="court-net"></div><div class="court-service"></div><div class="court-center"></div>
+              <div class="shot-path"><i></i><b></b></div>
+              <span class="court-player">小满</span><span class="court-target">落点</span>
+            </div>
+          </article>
+          <article class="next-card">
+            <div class="card-label"><span>下一步</span><small>基于最近 3 场</small></div>
+            <div class="focus-ring"><span>首要改进</span><strong>回位<br>速度</strong></div>
+            <p>击球后平均回位用时 <strong>2.1 秒</strong>，目标是 1.7 秒。</p>
+            <div class="micro-progress"><span style="width:68%"></span></div>
+          </article>
+        </section>
+
+        <section class="stats-strip" aria-label="近期数据" hidden>
+          <div><span>近 8 场战绩</span><strong>5 <small>胜</small> — 3 <small>负</small></strong><em class="up">胜率 +9%</em></div>
+          <div><span>自我满意度</span><strong>7.8<small>/ 10</small></strong><em class="up">连续上升</em></div>
+          <div><span>平均一发得分率</span><strong>64<small>%</small></strong><em class="up">+12%</em></div>
+          <div class="spark-stat"><span>比赛状态</span><svg viewBox="0 0 150 44" role="img" aria-label="状态趋势上升"><path d="M2 37 C20 35,24 14,42 24 S67 41,82 22 S105 29,116 12 S137 17,148 5" fill="none" stroke="currentColor" stroke-width="3"/><path d="M2 37 C20 35,24 14,42 24 S67 41,82 22 S105 29,116 12 S137 17,148 5 L148 44 L2 44Z" fill="url(#fade)"/><defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#13a38f" stop-opacity=".22"/><stop offset="1" stop-color="#13a38f" stop-opacity="0"/></linearGradient></defs></svg><em>稳定向上</em></div>
+        </section>
+
+        <section class="section-grid" hidden>
+          <article class="panel recent-match">
+            <div class="panel-head"><div><span class="eyebrow eyebrow--green">最近比赛</span><h2>对阵 陈奕</h2></div><span class="result-pill win">胜</span></div>
+            <div class="match-meta"><span>7 月 10 日</span><i></i><span>城市网球中心</span><i></i><span>硬地</span></div>
+            <div class="scoreboard">
+              <div class="score-row"><span class="serve-dot"></span><strong>林小满</strong><b>6</b><b>3</b><b class="set-win">10</b></div>
+              <div class="score-row"><span></span><strong>陈奕</strong><b>4</b><b>6</b><b>7</b></div>
+            </div>
+            <div class="match-insight"><span>复盘一句话</span><p>决胜抢十时主动压向对手反手，策略执行得很坚决。</p></div>
+            <button class="row-button" data-view="matches">查看比赛记录 <span>→</span></button>
+          </article>
+
+          <article class="panel video-panel">
+            <div class="panel-head"><div><span class="eyebrow eyebrow--green">AI 动作分析</span><h2>3 个关键片段</h2></div><button class="more-button">•••</button></div>
+            <div class="video-still">
+              <div class="player-silhouette"><span class="head"></span><span class="body"></span><span class="arm"></span><span class="racket"></span></div>
+              <div class="pose-line pose-line--1"></div><div class="pose-line pose-line--2"></div>
+              <button class="play-button" data-view="matches" aria-label="查看比赛">→</button>
+              <span class="frame-time">00:18:42</span><span class="frame-tag">正手击球点偏后</span>
+            </div>
+            <div class="analysis-summary"><div class="level-icon">!</div><p><strong>赛后复盘</strong><span>根据自己的比赛感受，创建下一次训练内容。</span></p><button data-view="exercises">看建议</button></div>
+          </article>
+        </section>
+
+        <section class="progress-section" hidden>
+          <div class="section-title"><div><span class="eyebrow eyebrow--green">成长轨迹</span><h2>最近 8 场，你进步在哪？</h2></div><button class="outline-button" data-view="history">查看完整趋势</button></div>
+          <div class="progress-table">
+            <div class="progress-row"><span>一发得分率</span><div class="bar"><i style="width:64%"></i><b style="left:49%"></b></div><strong>49% → 64%</strong><em>+15%</em></div>
+            <div class="progress-row"><span>非受迫性失误</span><div class="bar reverse"><i style="width:46%"></i><b style="left:72%"></b></div><strong>18 → 11</strong><em>少 7 次</em></div>
+            <div class="progress-row"><span>自我满意度</span><div class="bar"><i style="width:78%"></i><b style="left:61%"></b></div><strong>6.1 → 7.8</strong><em>+1.7</em></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="view" id="new-matchView">
+        <section class="page-intro"><span class="eyebrow eyebrow--green">比赛结束了？</span><h1>趁感觉还在，记录这一场。</h1><p>比分和主观感受会帮助分析更懂你。</p></section>
+        <form class="record-layout" id="matchForm">
+          <article class="panel form-panel">
+            <h2>比赛信息</h2>
+            <div class="form-grid">
+              <label class="field"><span>对手姓名</span><input id="opponent" required placeholder="输入对手姓名" /></label>
+              <label class="field"><span>比赛日期</span><input id="matchDate" type="date" required /></label>
+              <label class="field"><span>场地</span><select id="surface"><option>硬地</option><option>红土</option><option>草地</option><option>室内地毯</option></select></label>
+            </div>
+            <fieldset class="choice-field"><legend>比赛类型</legend><div class="segmented"><label><input type="radio" name="matchType" value="单打" checked /><span>单打</span></label><label><input type="radio" name="matchType" value="双打" /><span>双打</span></label></div></fieldset>
+            <div class="score-input-head"><h3>盘分</h3><span>赢家至少 6 局并领先 2 局；6–6 时需填写抢七</span></div>
+            <div class="set-block"><div class="set-input"><span>第一盘</span><input class="player-score" type="number" min="0" max="20" required placeholder="我方" /><i>—</i><input class="opponent-score" type="number" min="0" max="20" required placeholder="对方" /></div><label class="tiebreak-toggle"><input class="tiebreak-check" type="checkbox" /><span>＋ 添加抢七比分</span></label><div class="tiebreak-inputs" hidden><span>抢七</span><input class="tiebreak-player" type="number" min="0" max="100" placeholder="我方" /><i>—</i><input class="tiebreak-opponent" type="number" min="0" max="100" placeholder="对方" /></div></div>
+            <div class="set-block"><div class="set-input"><span>第二盘</span><input class="player-score" type="number" min="0" max="20" placeholder="我方" /><i>—</i><input class="opponent-score" type="number" min="0" max="20" placeholder="对方" /></div><label class="tiebreak-toggle"><input class="tiebreak-check" type="checkbox" /><span>＋ 添加抢七比分</span></label><div class="tiebreak-inputs" hidden><span>抢七</span><input class="tiebreak-player" type="number" min="0" max="100" placeholder="我方" /><i>—</i><input class="tiebreak-opponent" type="number" min="0" max="100" placeholder="对方" /></div></div>
+            <div class="set-block"><div class="set-input"><span>第三盘</span><input class="player-score" type="number" min="0" max="20" placeholder="我方" /><i>—</i><input class="opponent-score" type="number" min="0" max="20" placeholder="对方" /></div><label class="tiebreak-toggle"><input class="tiebreak-check" type="checkbox" /><span>＋ 添加抢七比分</span></label><div class="tiebreak-inputs" hidden><span>抢七</span><input class="tiebreak-player" type="number" min="0" max="100" placeholder="我方" /><i>—</i><input class="tiebreak-opponent" type="number" min="0" max="100" placeholder="对方" /></div></div>
+            <div class="score-error" id="scoreError" role="alert" hidden><strong>无效比分</strong><span id="scoreErrorText">赢家需至少 6 局，领先 2 局（抢七需要至少 7 分，并且赢家领先 2 分）</span></div>
+          </article>
+          <article class="panel feeling-panel">
+            <h2>你对表现满意吗？</h2><p>没有标准答案，记录真实感受就好。</p>
+            <fieldset class="emoji-rating"><legend class="sr-only">选择满意度</legend><label><input type="radio" name="satisfaction" value="😔" /><span>😔<small>失望</small></span></label><label><input type="radio" name="satisfaction" value="😐" checked /><span>😐<small>一般</small></span></label><label><input type="radio" name="satisfaction" value="😄" /><span>😄<small>满意</small></span></label><label><input type="radio" name="satisfaction" value="🤩" /><span>🤩<small>超出预期</small></span></label></fieldset>
+            <label class="field note-field"><span>这场比赛，你最想记住什么？</span><textarea id="matchNote" placeholder="写下你的真实感受（选填）"></textarea></label>
+            <button class="primary-button primary-button--wide" id="matchSubmitButton" type="submit">保存比赛记录 <span>→</span></button><button class="cancel-edit" id="cancelMatchEdit" type="button" hidden>取消修改</button>
+          </article>
+        </form>
+      </div>
+
+      <div class="view" id="analysisView">
+        <section class="page-intro"><span class="eyebrow eyebrow--green">比赛视频分析</span><h1>让身体动作，说明问题。</h1><p>上传比赛视频。系统只观察球员的转体、平衡、挥拍、站位和下肢准备，不检测网球位置。</p></section>
+        <div class="motion-layout">
+          <form class="panel motion-upload" id="motionForm">
+            <div class="motion-step"><b>01</b><span>上传整场比赛</span></div>
+            <label class="motion-drop" id="motionDrop"><input id="motionVideo" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,video/avi" required /><span class="motion-camera">▶</span><strong id="motionFileName">选择比赛视频</strong><small>球员尽量全身入镜、镜头固定、画面清楚 · 最大 250 MB</small></label>
+            <video id="motionPreview" controls hidden></video>
+            <button class="primary-button primary-button--wide" id="analyzeButton" type="submit">识别视频中的球员 <span>→</span></button>
+            <div class="player-selection" id="playerSelection" hidden><div class="motion-step"><b>02</b><span>确认要分析的球员</span></div><p>检测到多位球员。请选择你自己，再开始整段分析。</p><div class="player-candidates" id="playerCandidates"></div><button class="primary-button primary-button--wide" id="confirmPlayerButton" type="button">确认并分析整段视频 <span>→</span></button></div>
+            <div class="analysis-loading" id="analysisLoading" hidden><i></i><strong id="analysisLoadingTitle">正在读取比赛视频</strong><span>系统会检查整段视频并截取需要改善的动作。长视频需要更多时间。</span></div>
+            <p class="form-error analysis-error" id="analysisError" role="alert"></p>
+          </form>
+          <section class="motion-result-column"><div id="analysisResult"><div class="analysis-empty"><span>◎</span><h2>等待一场比赛</h2><p>完成分析后，这里会显示动作窗口、身体轨迹观察和可能的改进方向。</p></div></div><div class="analysis-history" id="analysisHistory"></div></section>
+        </div>
+      </div>
+
+      <div class="view" id="historyView"><section class="page-intro"><span class="eyebrow eyebrow--green">成长趋势</span><h1>每个月，都留下答案。</h1><p id="historyMessage">图表只使用你真实记录的比赛。</p></section><div class="trend-grid"><article class="trend-card"><div class="trend-head"><div><span>01 · 满意度</span><h2>每月平均满意度</h2></div><strong id="satisfactionTrendLatest">—</strong></div><div class="chart" id="satisfactionChart"></div></article><article class="trend-card"><div class="trend-head"><div><span>02 · 比赛结果</span><h2>每月胜率</h2></div><strong id="winRateTrendLatest">—</strong></div><div class="chart" id="winRateChart"></div></article></div><div class="trend-empty" id="trendEmpty" hidden>记录比赛后，这里会生成按月趋势。</div></div>
+      <div class="view" id="matchesView"><section class="page-intro"><span class="eyebrow eyebrow--green">比赛档案</span><h1>全部比赛</h1><p>这里只显示你亲自添加的记录。</p></section><div class="real-match-list" id="allMatches"></div><div class="list-empty" id="matchesEmpty"><p>还没有比赛记录。</p><button class="primary-button" data-view="new-match">记录第一场比赛</button></div></div>
+      <div class="view" id="calendarView">
+        <section class="page-intro page-intro--row"><div><span class="eyebrow eyebrow--green">比赛日历</span><h1>下一场，已经在路上。</h1><p id="calendarCountdown">还没有安排下一场比赛。</p></div><button class="primary-button" id="scheduleToggle" type="button">＋ 安排比赛</button></section>
+        <div class="calendar-layout"><section class="calendar-shell"><div class="calendar-head"><button type="button" id="calendarPrev" aria-label="上个月">←</button><h2 id="calendarTitle"></h2><button type="button" id="calendarNext" aria-label="下个月">→</button></div><div class="calendar-week"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div><div class="calendar-grid" id="calendarGrid"></div><div class="calendar-legend"><span><i class="recorded-dot"></i>已发生／已记录</span><span><i class="scheduled-dot"></i>未来比赛</span></div></section><aside class="calendar-side"><span class="eyebrow eyebrow--green">未来安排</span><h2>接下来的比赛</h2><div id="upcomingMatches"></div></aside></div>
+      </div>
+      <div class="view" id="goalsView">
+        <section class="page-intro"><span class="eyebrow eyebrow--green">训练目标</span><h1>把“想进步”，写成下一步。</h1><p>创建具体目标，完成后亲手划掉。</p></section>
+        <div class="goal-notice" id="goalNotice" hidden></div>
+        <div class="smart-guide"><strong>SMART 目标</strong><span><b>S</b>具体</span><span><b>M</b>可衡量</span><span><b>A</b>可实现</span><span><b>R</b>与比赛相关</span><span><b>T</b>有截止日期</span><p>例如：未来 4 周，每周练习两次二发，每次完成 30 球。</p></div>
+        <div class="goals-layout"><form class="panel goal-form" id="goalForm"><h2>新目标</h2><label class="field"><span>目标内容</span><input id="goalTitle" required placeholder="写清动作、次数与频率" /></label><label class="field"><span>目标日期</span><input id="goalDate" type="date" /><small class="field-hint" id="goalDateHint"></small></label><button class="primary-button primary-button--wide" type="submit">添加目标 <span>→</span></button></form><section class="goal-columns"><div><h3>进行中</h3><div class="goal-list" id="activeGoalList"></div><div class="list-empty compact" id="activeGoalsEmpty"><p>没有进行中的目标。</p></div></div><div><h3>已完成</h3><div class="goal-list" id="completedGoalList"></div><div class="list-empty compact" id="completedGoalsEmpty"><p>还没有完成的目标。</p></div></div></section></div>
+      </div>
+      <div class="view" id="exercisesView"><section class="page-intro"><span class="eyebrow eyebrow--green">训练建议</span><h1>把复盘，变成下一次训练。</h1><p>系统根据复盘关键词生成建议；你可以完成、忽略，或添加自己的练习。</p></section><div class="exercise-layout"><section><form class="panel exercise-form" id="exerciseForm"><label class="field exercise-title-field"><span>练习内容</span><input id="exerciseTitle" required placeholder="例如：反手斜线 3 组 × 20 球" /></label><button class="primary-button primary-button--wide" type="submit">添加练习 <span>→</span></button><button class="example-toggle" id="exerciseExamplesToggle" type="button">不知道练什么？查看示例</button></form><div class="exercise-examples" id="exerciseExamples" hidden><div class="examples-head"><strong>练习示例</strong><span>点击“加入”即可添加到待完成练习</span></div><article><span>正手斜线 20 球 × 3 组</span><button type="button" data-exercise-example="正手斜线 20 球 × 3 组">加入</button></article><article><span>正手进攻球 15 球 × 3 组</span><button type="button" data-exercise-example="正手进攻球 15 球 × 3 组">加入</button></article><article><span>网前截击 10 分钟</span><button type="button" data-exercise-example="网前截击 10 分钟">加入</button></article></div></section><section><div class="exercise-list" id="activeExerciseList"></div><div class="list-empty" id="exercisesEmpty"><p>暂时没有训练建议。记录比赛并填写赛后复盘后，这里会自动出现相关练习。</p></div><div class="completed-exercises" id="completedExercisesSection" hidden><h3>已完成</h3><div class="exercise-list" id="completedExerciseList"></div></div></section></div></div>
+    </main>
+  </div>
+
+  <dialog class="modal" id="forgotModal">
+    <form id="forgotForm">
+      <button class="modal-close" type="button" aria-label="关闭">×</button>
+      <span class="eyebrow eyebrow--green">重设密码</span><h2>设置新密码</h2><p>输入已注册的邮箱和新密码。</p>
+      <label class="field"><span>邮箱</span><input id="resetEmail" type="email" placeholder="name@example.com" required /></label>
+      <label class="field"><span>新密码</span><input id="resetPassword" type="password" minlength="6" required /></label>
+      <p class="form-error" id="resetError" role="alert"></p>
+      <button class="primary-button primary-button--wide" type="submit">保存新密码</button>
+    </form>
+  </dialog>
+  <dialog class="modal" id="signupModal">
+    <form id="signupForm">
+      <button class="modal-close" type="button" id="signupClose" aria-label="关闭">×</button>
+      <span class="eyebrow eyebrow--green">创建账户</span><h2>从你的第一场开始</h2><p>账户创建后不会出现任何预设比赛数据。</p>
+      <label class="field"><span>你的姓名</span><input id="signupName" required placeholder="输入姓名" autocomplete="name" /></label>
+      <label class="field"><span>邮箱</span><input id="signupEmail" type="email" required placeholder="name@example.com" autocomplete="email" /></label>
+      <label class="field"><span>密码</span><input id="signupPassword" type="password" minlength="6" required placeholder="至少 6 位" autocomplete="new-password" /></label>
+      <label class="field"><span>确认密码</span><input id="signupConfirm" type="password" minlength="6" required placeholder="再次输入密码" autocomplete="new-password" /></label>
+      <p class="form-error" id="signupError" role="alert"></p>
+      <button class="primary-button primary-button--wide" type="submit">创建账户并开始</button>
+    </form>
+  </dialog>
+  <dialog class="modal match-detail-modal" id="matchDetailModal"><div class="match-detail"><button class="modal-close" type="button" id="matchDetailClose" aria-label="关闭">×</button><button class="back-to-day" type="button" id="backToDay" hidden>← 返回</button><span class="eyebrow eyebrow--green">比赛详情</span><h2 id="detailTitle"></h2><div class="detail-meta" id="detailMeta"></div><div class="detail-score" id="detailScore"></div><div class="detail-feeling"><span>满意度</span><strong id="detailSatisfaction"></strong></div><div class="detail-note" id="detailNote"></div><div class="match-detail-actions"><button type="button" id="editMatchButton">编辑比赛</button><button type="button" class="danger-button" id="deleteMatchButton">删除比赛</button></div></div></dialog>
+  <dialog class="modal schedule-modal" id="scheduleModal"><form id="scheduleForm"><button class="modal-close" id="scheduleClose" type="button" aria-label="关闭">×</button><span class="eyebrow eyebrow--green">安排下一场</span><h2>把比赛加入日历</h2><p>选择日期并填写基本信息，首页会自动显示倒计时。</p><label class="field"><span>比赛日期</span><input id="scheduleDate" type="date" required /></label><label class="field"><span>对手</span><input id="scheduleOpponent" required placeholder="输入对手或组合" /></label><div class="form-grid"><label class="field"><span>比赛类型</span><select id="scheduleType"><option>单打</option><option>双打</option></select></label><label class="field"><span>地点</span><input id="scheduleLocation" placeholder="选填" /></label></div><button class="primary-button primary-button--wide" type="submit">保存比赛安排 <span>→</span></button></form></dialog>
+  <dialog class="modal day-modal" id="dayModal"><div class="day-detail"><button class="modal-close" id="dayClose" type="button" aria-label="关闭">×</button><span class="eyebrow eyebrow--green">日历详情</span><h2 id="dayTitle"></h2><div id="dayContent"></div></div></dialog>
+  <dialog class="modal confirm-modal" id="confirmModal"><div class="confirm-dialog"><span class="eyebrow eyebrow--green">请确认</span><h2 id="confirmTitle">确定删除？</h2><p id="confirmMessage"></p><div class="confirm-actions"><button type="button" id="confirmCancel">取消</button><button type="button" id="confirmAccept">确认删除</button></div></div></dialog>
+  <dialog class="modal plan-review-modal" id="planReviewModal"><div class="plan-review"><button class="modal-close" id="planReviewClose" type="button" aria-label="关闭">×</button><span class="eyebrow eyebrow--green">训练计划确认</span><h2 id="planReviewTitle">加入这些建议？</h2><p id="planReviewMessage">勾选你愿意执行的内容，再加入训练计划。</p><div class="plan-review-list" id="planReviewList"></div><div class="plan-review-actions"><button type="button" id="planReviewCancel">暂不添加</button><button class="primary-button" type="button" id="planReviewConfirm">确认加入</button></div></div></dialog>
+  <dialog class="image-lightbox" id="imageLightbox"><button type="button" id="imageLightboxClose" aria-label="关闭大图">×</button><img id="lightboxImage" alt="错误动作放大截图"/><div id="lightboxCaption"></div></dialog>
+  <dialog class="coaching-video-modal" id="coachingVideoModal"><div class="coaching-modal-head"><div><span>正确动作示范</span><h2 id="coachingModalTitle"></h2><p id="coachingModalChapter"></p></div><button type="button" id="coachingModalClose" aria-label="关闭教学视频">×</button></div><div class="coaching-modal-player" id="coachingModalPlayer"></div></dialog>
+  <dialog class="modal analysis-name-modal" id="analysisNameModal"><form id="analysisNameForm"><button class="modal-close" id="analysisNameClose" type="button" aria-label="关闭">×</button><span class="eyebrow eyebrow--green">分析名称</span><h2>给这次分析命名</h2><p>日期和时间仍会保留在历史记录中。</p><label class="field"><span>名称</span><input id="analysisNameInput" maxlength="40" required /></label><button class="primary-button primary-button--wide" type="submit">保存名称 <span>→</span></button></form></dialog>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="app.js?v=20260717-15"></script>
+</body>
+</html>
