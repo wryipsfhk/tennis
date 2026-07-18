@@ -5,6 +5,7 @@ data/*.db-wal
 __pycache__/
 .venv/
 .env
+dist/
 data/uploads/
 data/analysis/
 data/.mpl/

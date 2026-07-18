@@ -1,0 +1,74 @@
+const JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b";
+
+function response(status, payload) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+function configuration() {
+  const binId = (process.env.JSONBIN_BIN_ID || "").trim();
+  const accessKey = (process.env.JSONBIN_ACCESS_KEY || "").trim();
+  const masterKey = (process.env.JSONBIN_MASTER_KEY || "").trim();
+  return {binId, accessKey, masterKey, configured: Boolean(binId && (accessKey || masterKey))};
+}
+
+function jsonBinHeaders(config, write = false) {
+  const headers = {
+    "X-Bin-Meta": "false",
+    "User-Agent": "TennisProgress-Netlify/1.0",
+  };
+  headers[config.accessKey ? "X-Access-Key" : "X-Master-Key"] = config.accessKey || config.masterKey;
+  if (write) {
+    headers["Content-Type"] = "application/json";
+    headers["X-Bin-Versioning"] = "false";
+  }
+  return headers;
+}
+
+export default async (request) => {
+  const config = configuration();
+  if (!config.configured) {
+    return response(503, {error: "Netlify 尚未配置 JSONBin 环境变量。"});
+  }
+
+  try {
+    if (request.method === "GET") {
+      const remote = await fetch(`${JSONBIN_BASE_URL}/${config.binId}/latest?meta=false`, {
+        headers: jsonBinHeaders(config),
+      });
+      const result = await remote.json().catch(() => ({}));
+      if (!remote.ok) throw new Error(result.message || `JSONBin ${remote.status}`);
+      return response(200, result.record ?? result);
+    }
+
+    if (request.method === "PUT") {
+      const raw = await request.text();
+      if (new TextEncoder().encode(raw).length > 95 * 1024) {
+        return response(413, {error: "账户数据已接近 JSONBin 免费 Bin 的大小上限。"});
+      }
+      const accounts = JSON.parse(raw);
+      if (!accounts || Array.isArray(accounts) || typeof accounts !== "object") {
+        return response(400, {error: "账户数据必须是对象。"});
+      }
+      const remote = await fetch(`${JSONBIN_BASE_URL}/${config.binId}`, {
+        method: "PUT",
+        headers: jsonBinHeaders(config, true),
+        body: JSON.stringify(accounts),
+      });
+      const result = await remote.json().catch(() => ({}));
+      if (!remote.ok) throw new Error(result.message || `JSONBin ${remote.status}`);
+      return response(200, {saved: true, storage: "jsonbin"});
+    }
+
+    return response(405, {error: "不支持此请求方式。"});
+  } catch (error) {
+    return response(502, {error: `JSONBin 同步失败：${error.message || "未知错误"}`});
+  }
+};
+
+export const config = {path: "/api/accounts"};

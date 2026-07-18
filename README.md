@@ -24,3 +24,12 @@
 比赛视频分析使用项目本地安装的 MediaPipe 与 OpenCV。系统会先识别球员，多人时让用户确认目标球员，再分析整段视频并保存问题截图；视频不会发送到外部服务。
 
 视频原文件和分析截图体积较大，继续保存在本机 `data/` 目录；JSONBin 同步的是它们的报告、名称和文件路径，不上传视频二进制内容。
+
+## Netlify 部署
+
+Netlify 会通过 `netlify.toml` 只发布前端文件，并用 Netlify Functions 提供 `/api/accounts` 与 `/api/storage-status`。在 Netlify 的 **Project configuration → Environment variables** 中添加：
+
+- `JSONBIN_BIN_ID`
+- `JSONBIN_MASTER_KEY`，或权限受限的 `JSONBIN_ACCESS_KEY`
+
+保存变量后重新触发一次 Deploy。登录、比赛、目标、日历和训练建议会直接同步 JSONBin。MediaPipe/OpenCV 视频分析仍需要单独部署 Python 服务。
