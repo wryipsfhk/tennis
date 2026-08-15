@@ -4,49 +4,89 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#087f73" />
-  <title>Tennis Progress Tracker</title>
-  <link rel="stylesheet" href="styles.css?v=20260815-17" />
+  <title>AcePoint — Your Tennis Progress Journal</title>
+  <meta name="description" content="Review match footage, record results, and keep your next training focus in one place with AcePoint." />
+  <link rel="stylesheet" href="styles.css?v=20260815-18" />
 </head>
 <body>
-  <section class="login-page" id="loginPage" aria-label="Sign in">
-    <div class="login-brand">
-      <div class="login-copy">
-        <span class="eyebrow">Every point is part of your progress</span>
-        <h1>Turn how you <em>felt</em><br>on court into visible progress.</h1>
-        <p>Record scores and reflections so every review leads to a clear next step.</p>
-      </div>
-      <div class="court-mark" aria-hidden="true">
-        <div class="court-line court-line--v"></div>
-        <div class="court-line court-line--h"></div>
-        <div class="ball-shadow"></div>
-      </div>
-    </div>
+  <section class="login-page landing-page" id="loginPage" aria-label="AcePoint public website">
+    <header class="landing-nav">
+      <a class="landing-wordmark" href="#top" aria-label="AcePoint home"><span class="landing-ball" aria-hidden="true"></span><strong>AcePoint</strong></a>
+      <nav aria-label="Public navigation"><a href="#how-it-works">How it works</a><a href="#features">Features</a></nav>
+      <div class="landing-nav-actions"><button class="landing-signin" type="button" data-open-login>Sign in</button><button class="landing-try" type="button" data-open-signup>Try AcePoint <span>↗</span></button></div>
+    </header>
 
-    <div class="login-panel">
+    <main id="top">
+      <section class="landing-hero">
+        <div class="hero-court-lines" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="landing-hero-copy">
+          <span class="landing-kicker">A tennis journal for the work between matches</span>
+          <h1>You played the match.<br><em>Now learn from it.</em></h1>
+          <p>Review match footage, record results, and keep your next training focus in one place.</p>
+          <div class="landing-actions"><button class="landing-try landing-try--light" type="button" data-open-signup>Try AcePoint <span>↗</span></button><a href="#how-it-works">See how it works <span>↓</span></a></div>
+        </div>
+        <div class="hero-index" aria-hidden="true"><span>ACE / 01</span><b>MATCH<br>REVIEW</b></div>
+      </section>
+
+      <section class="product-preview" aria-label="Preview of the AcePoint match journal">
+        <div class="preview-caption"><span>Inside AcePoint</span><p>A real look at the match-entry workspace. Your journal begins empty and grows only with what you record.</p></div>
+        <div class="preview-window">
+          <div class="preview-browser"><span></span><span></span><span></span><b>acepoint / match journal</b></div>
+          <div class="preview-app">
+            <aside class="preview-sidebar">
+              <div class="preview-brand"><span class="landing-ball"></span><strong>AcePoint</strong></div>
+              <small>MATCH CENTER</small><b>Recent Results</b><b class="is-active">＋ Log a Match</b><b>Movement Analysis</b><b>Progress Trends</b>
+              <small>MY SPACE</small><b>All Matches</b><b>Match Calendar</b><b>Training Goals</b><b>Training Plan</b>
+            </aside>
+            <div class="preview-main">
+              <div class="preview-top"><span>MATCH JOURNAL</span><strong>Log a Match</strong></div>
+              <div class="preview-intro"><span>Match finished?</span><h2>Log it while the details are fresh.</h2><p>Your score and honest reflection make your progress more meaningful.</p></div>
+              <div class="preview-form-grid">
+                <article><h3>Match Details</h3><div class="preview-fields"><label>Opponent<i>Enter opponent’s name</i></label><label>Match Date<i>dd / mm / yyyy</i></label><label>Court Surface<i>Hard</i></label></div><div class="preview-choice"><span>Match Type</span><b>Singles</b><b>Doubles</b></div><div class="preview-score"><span>Set 1</span><i>You</i><em>—</em><i>Opponent</i></div></article>
+                <article class="preview-feeling"><h3>How satisfied were you?</h3><p>Record how you genuinely felt.</p><div><span>😔</span><span>😐</span><span class="selected">😄</span><span>🤩</span></div><label>Match reflection<i>Write an honest reflection (optional)</i></label><b class="preview-save">Save Match <span>→</span></b></article>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="landing-process" id="how-it-works">
+        <div class="landing-section-head"><span>How it works</span><h2>A useful review has a sequence.</h2><p>AcePoint keeps the match, the movement, and the next practice connected.</p></div>
+        <ol><li><span>01</span><div><h3>Log the match</h3><p>Add the score, match type, satisfaction, and the reflection you want to remember.</p></div></li><li><span>02</span><div><h3>Review your movement</h3><p>Upload footage and review visible patterns in rotation, balance, stance, and swing path.</p></div></li><li><span>03</span><div><h3>Choose what to work on next</h3><p>Confirm a focused goal and practical drills instead of letting the review disappear.</p></div></li></ol>
+      </section>
+
+      <section class="landing-features" id="features">
+        <div class="landing-section-head landing-section-head--light"><span>One place for the full loop</span><h2>From final point<br>to next practice.</h2></div>
+        <div class="feature-list">
+          <article><span>01</span><div><h3>Match records and trends</h3><p>Keep scores, satisfaction, and reflections together, then see monthly win-rate and satisfaction trends.</p></div><i>RESULTS / TRENDS</i></article>
+          <article><span>02</span><div><h3>Video movement review</h3><p>Review body movement from match footage, revisit highlighted windows, and watch them in slow motion.</p></div><i>MOVEMENT / VIDEO</i></article>
+          <article><span>03</span><div><h3>Goals and exercises</h3><p>Turn a reflection into a SMART goal and a list of drills you can confirm, customise, complete, or dismiss.</p></div><i>FOCUS / PRACTICE</i></article>
+          <article><span>04</span><div><h3>Match calendar</h3><p>Schedule what is next, see your countdown, and open any played date to revisit its match details.</p></div><i>SCHEDULE / HISTORY</i></article>
+        </div>
+      </section>
+
+      <section class="landing-final-cta">
+        <div class="cta-court" aria-hidden="true"><i></i><i></i></div>
+        <span>Keep the next point connected to the last one.</span><h2>Your match is finished.<br>Your review can start.</h2><button class="landing-try landing-try--light" type="button" data-open-signup>Try AcePoint <span>↗</span></button>
+      </section>
+    </main>
+
+    <footer class="landing-footer"><a class="landing-wordmark" href="#top"><span class="landing-ball"></span><strong>AcePoint</strong></a><p>A focused tennis journal for matches, movement, and what comes next.</p><button type="button" data-open-login>Sign in</button></footer>
+
+    <dialog class="landing-login-modal" id="loginModal">
       <form class="login-card" id="loginForm">
+        <button class="modal-close landing-login-close" id="loginClose" type="button" aria-label="Close sign-in form">×</button>
         <span class="eyebrow eyebrow--green">Welcome back</span>
         <h2>Continue your match journal</h2>
-        <p class="muted">Sign in to view your reviews and progress trends</p>
-        <label class="field">
-          <span>Email</span>
-          <input id="email" type="email" placeholder="name@example.com" autocomplete="email" required />
-        </label>
-        <label class="field">
-          <span>Password</span>
-          <span class="password-wrap">
-            <input id="password" type="password" placeholder="Enter your password" minlength="6" autocomplete="current-password" required />
-            <button class="text-icon" id="togglePassword" type="button" aria-label="Show password">Show</button>
-          </span>
-        </label>
-        <div class="login-options">
-          <label class="check"><input type="checkbox" checked /><span>Keep me signed in</span></label>
-          <button class="link-button" id="forgotOpen" type="button">Forgot password?</button>
-        </div>
+        <p class="muted">Sign in to view your reviews and progress trends.</p>
+        <label class="field"><span>Email</span><input id="email" type="email" placeholder="name@example.com" autocomplete="email" required /></label>
+        <label class="field"><span>Password</span><span class="password-wrap"><input id="password" type="password" placeholder="Enter your password" minlength="6" autocomplete="current-password" required /><button class="text-icon" id="togglePassword" type="button" aria-label="Show password">Show</button></span></label>
+        <div class="login-options"><label class="check"><input type="checkbox" checked /><span>Keep me signed in</span></label><button class="link-button" id="forgotOpen" type="button">Forgot password?</button></div>
         <p class="form-error" id="loginError" role="alert"></p>
         <button class="primary-button primary-button--wide" type="submit">Sign in <span>→</span></button>
         <p class="signup">New here?<button type="button" class="link-button" id="signupButton">Create account</button></p>
       </form>
-    </div>
+    </dialog>
   </section>
 
   <div class="app-shell" id="appShell" hidden>
@@ -250,6 +290,6 @@
   <dialog class="coaching-video-modal" id="coachingVideoModal"><div class="coaching-modal-head"><div><span>Technique Demonstration</span><h2 id="coachingModalTitle"></h2><p id="coachingModalChapter"></p></div><button type="button" id="coachingModalClose" aria-label="Close coaching video">×</button></div><div class="coaching-modal-player" id="coachingModalPlayer"></div></dialog>
   <dialog class="modal analysis-name-modal" id="analysisNameModal"><form id="analysisNameForm"><button class="modal-close" id="analysisNameClose" type="button" aria-label="Close">×</button><span class="eyebrow eyebrow--green">ANALYSIS NAME</span><h2>Name This Analysis</h2><p>The original date and time will remain in the history.</p><label class="field"><span>Name</span><input id="analysisNameInput" maxlength="40" required /></label><button class="primary-button primary-button--wide" type="submit">Save Name <span>→</span></button></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260815-17"></script>
+  <script src="app.js?v=20260815-18"></script>
 </body>
 </html>
