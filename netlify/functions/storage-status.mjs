@@ -10,7 +10,7 @@ export default async () => {
 
   if (!configured) {
     const missing = [!binId ? "JSONBIN_BIN_ID" : "", !accessKey && !masterKey ? "JSONBIN_MASTER_KEY" : ""].filter(Boolean);
-    return new Response(JSON.stringify({configured: false, connected: false, backend: "none", message: `缺少：${missing.join("、")}`, missing}), {status: 200, headers});
+    return new Response(JSON.stringify({configured: false, connected: false, backend: "none", message: `Missing: ${missing.join(", ")}`, missing}), {status: 200, headers});
   }
 
   try {
@@ -19,7 +19,7 @@ export default async () => {
       headers: {...auth, "X-Bin-Meta": "false", "User-Agent": "TennisProgress-Netlify/1.0"},
     });
     if (!remote.ok) throw new Error(`JSONBin ${remote.status}`);
-    return new Response(JSON.stringify({configured: true, connected: true, backend: "jsonbin", message: "已连接 JSONBin"}), {status: 200, headers});
+    return new Response(JSON.stringify({configured: true, connected: true, backend: "jsonbin", message: "Connected to JSONBin"}), {status: 200, headers});
   } catch (error) {
     return new Response(JSON.stringify({configured: true, connected: false, backend: "jsonbin", message: error.message}), {status: 200, headers});
   }

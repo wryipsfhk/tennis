@@ -39,7 +39,7 @@ JSONBIN_ACCESS_KEY = os.environ.get("JSONBIN_ACCESS_KEY", "").strip()
 JSONBIN_MASTER_KEY = os.environ.get("JSONBIN_MASTER_KEY", "").strip()
 JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b"
 STORAGE_LOCK = threading.RLock()
-STORAGE_STATUS = {"configured": bool(JSONBIN_BIN_ID and (JSONBIN_ACCESS_KEY or JSONBIN_MASTER_KEY)), "connected": False, "backend": "sqlite", "message": "JSONBin 尚未配置"}
+STORAGE_STATUS = {"configured": bool(JSONBIN_BIN_ID and (JSONBIN_ACCESS_KEY or JSONBIN_MASTER_KEY)), "connected": False, "backend": "sqlite", "message": "JSONBin is not configured"}
 
 
 class RemoteStorageError(Exception):
@@ -69,7 +69,7 @@ def read_local_accounts():
 
 def write_local_accounts(accounts):
     if not isinstance(accounts, dict):
-        raise ValueError("账户数据必须是对象")
+        raise ValueError("Account data must be an object")
     with connect() as connection:
         connection.execute("DELETE FROM accounts")
         connection.executemany(
@@ -95,7 +95,7 @@ def jsonbin_headers(include_content_type=False):
 
 def jsonbin_request(method, payload=None):
     if not STORAGE_STATUS["configured"]:
-        raise RemoteStorageError("JSONBin 尚未配置")
+        raise RemoteStorageError("JSONBin is not configured")
     url = "%s/%s%s" % (JSONBIN_BASE_URL, JSONBIN_BIN_ID, "/latest?meta=false" if method == "GET" else "")
     body = None if payload is None else json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     request = Request(url, data=body, headers=jsonbin_headers(body is not None), method=method)
@@ -108,9 +108,9 @@ def jsonbin_request(method, payload=None):
             detail = json.loads(error.read().decode("utf-8")).get("message", str(error))
         except Exception:
             detail = str(error)
-        raise RemoteStorageError("JSONBin 返回错误：%s" % detail) from error
+        raise RemoteStorageError("JSONBin returned an error: %s" % detail) from error
     except (URLError, TimeoutError, json.JSONDecodeError, UnicodeDecodeError) as error:
-        raise RemoteStorageError("无法连接 JSONBin：%s" % error) from error
+        raise RemoteStorageError("Could not connect to JSONBin: %s" % error) from error
 
 
 def read_accounts():
@@ -120,9 +120,9 @@ def read_accounts():
         try:
             accounts = jsonbin_request("GET")
             if not isinstance(accounts, dict):
-                raise RemoteStorageError("JSONBin 中的数据不是账户对象")
+                raise RemoteStorageError("The JSONBin record is not an account object")
             write_local_accounts(accounts)
-            STORAGE_STATUS.update(connected=True, backend="jsonbin", message="已连接 JSONBin")
+            STORAGE_STATUS.update(connected=True, backend="jsonbin", message="Connected to JSONBin")
             return accounts
         except RemoteStorageError as error:
             STORAGE_STATUS.update(connected=False, backend="sqlite-backup", message=str(error))
@@ -132,14 +132,14 @@ def read_accounts():
 
 def write_accounts(accounts):
     if not isinstance(accounts, dict):
-        raise ValueError("账户数据必须是对象")
+        raise ValueError("Account data must be an object")
     with STORAGE_LOCK:
         write_local_accounts(accounts)
         if not STORAGE_STATUS["configured"]:
             return "sqlite"
         try:
             jsonbin_request("PUT", accounts)
-            STORAGE_STATUS.update(connected=True, backend="jsonbin", message="已同步到 JSONBin")
+            STORAGE_STATUS.update(connected=True, backend="jsonbin", message="Synced to JSONBin")
             return "jsonbin"
         except RemoteStorageError as error:
             STORAGE_STATUS.update(connected=False, backend="sqlite-backup", message=str(error))
@@ -178,19 +178,19 @@ class TennisHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         if urlparse(self.path).path != "/api/accounts":
-            self.send_json(404, {"error": "未找到接口"})
+            self.send_json(404, {"error": "API endpoint not found"})
             return
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if length > 5 * 1024 * 1024:
-                self.send_json(413, {"error": "数据过大"})
+                self.send_json(413, {"error": "The account data is too large"})
                 return
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             backend = write_accounts(payload)
             self.send_json(200, {"saved": True, "storage": backend})
         except RemoteStorageError as error:
             self.send_json(502, {
-                "error": "数据已保存到本机备份，但 JSONBin 同步失败。%s" % error,
+                "error": "The data was saved to the local backup, but JSONBin sync failed. %s" % error,
                 "savedLocally": True,
             })
         except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as error:
@@ -199,7 +199,7 @@ class TennisHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         if path not in {"/api/prepare-analysis", "/api/analyze-match"}:
-            self.send_json(404, {"error": "未找到接口"})
+            self.send_json(404, {"error": "API endpoint not found"})
             return
         if path == "/api/analyze-match":
             try:
@@ -208,10 +208,10 @@ class TennisHandler(BaseHTTPRequestHandler):
                 upload_id = str(payload.get("uploadId", ""))
                 bbox = payload.get("bbox")
                 if not upload_id or not isinstance(bbox, list) or len(bbox) != 4:
-                    raise ValueError("请选择要分析的球员。")
+                    raise ValueError("Select the player to analyze.")
                 matches = list(UPLOAD_DIR.glob("%s.*" % upload_id))
                 if not matches:
-                    raise ValueError("找不到刚才上传的视频，请重新上传。")
+                    raise ValueError("The uploaded video could not be found. Please upload it again.")
                 from analyzer import analyze_video
                 contact_time = payload.get("contactTime")
                 result = analyze_video(matches[0], "match", [float(value) for value in bbox], float(contact_time) if contact_time is not None else None)
@@ -224,13 +224,13 @@ class TennisHandler(BaseHTTPRequestHandler):
                 self.send_json(400, {"error": str(error)})
             except Exception as error:
                 print("analysis error:", repr(error))
-                self.send_json(500, {"error": "整段视频分析未完成，请换一个画面更清晰的视频再试。"})
+                self.send_json(500, {"error": "The full-match analysis could not be completed. Try a clearer video."})
             return
         destination = None
         try:
             length = int(self.headers.get("Content-Length", "0"))
             if length <= 0 or length > 250 * 1024 * 1024:
-                self.send_json(413, {"error": "视频不能超过 250 MB。"})
+                self.send_json(413, {"error": "Video must be no larger than 250 MB."})
                 return
             form = cgi.FieldStorage(
                 fp=self.rfile,
@@ -239,10 +239,10 @@ class TennisHandler(BaseHTTPRequestHandler):
             )
             video = form["video"] if "video" in form else None
             if video is None or not getattr(video, "file", None):
-                raise ValueError("请选择一个视频。")
+                raise ValueError("Choose a video.")
             suffix = Path(getattr(video, "filename", "video.mp4")).suffix.lower()
             if suffix not in {".mp4", ".mov", ".m4v", ".webm", ".avi"}:
-                raise ValueError("请上传 MP4、MOV、M4V、WebM 或 AVI 视频。")
+                raise ValueError("Upload an MP4, MOV, M4V, WebM, or AVI video.")
             UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
             name = "%s%s" % (uuid.uuid4().hex, suffix)
             destination = UPLOAD_DIR / name
@@ -255,7 +255,7 @@ class TennisHandler(BaseHTTPRequestHandler):
                     written += len(chunk)
                     if written > 250 * 1024 * 1024:
                         destination.unlink(missing_ok=True)
-                        self.send_json(413, {"error": "视频不能超过 250 MB。"})
+                        self.send_json(413, {"error": "Video must be no larger than 250 MB."})
                         return
                     output.write(chunk)
             from analyzer import detect_players
@@ -274,7 +274,7 @@ class TennisHandler(BaseHTTPRequestHandler):
             if destination and destination.exists():
                 destination.unlink()
             print("analysis error:", repr(error))
-            self.send_json(500, {"error": "视频分析未完成，请换一个清晰的短视频再试。"})
+            self.send_json(500, {"error": "Video analysis could not be completed. Try a clear, shorter video."})
 
     def serve_file(self, request_path, include_body):
         relative = unquote(request_path).lstrip("/") or "index.html"

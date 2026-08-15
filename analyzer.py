@@ -39,11 +39,11 @@ def detect_players(video_path):
     """Find likely players in representative frames and return selectable screenshots."""
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
-        raise ValueError("无法读取这个视频，请上传 MP4、MOV 或 WebM 文件。")
+        raise ValueError("This video could not be read. Upload an MP4, MOV, or WebM file.")
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     if frame_count < 8:
         capture.release()
-        raise ValueError("视频太短，请上传一段完整比赛视频。")
+        raise ValueError("This video is too short. Upload a complete match video.")
     detector = cv2.HOGDescriptor()
     detector.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
     best_frame, best_boxes = None, []
@@ -70,7 +70,7 @@ def detect_players(video_path):
             best_frame, best_boxes = frame, filtered[:4]
     capture.release()
     if best_frame is None:
-        raise ValueError("无法读取视频画面。")
+        raise ValueError("No readable video frames were found.")
     height, width = best_frame.shape[:2]
     used_fallback = not best_boxes
     if used_fallback:
@@ -84,10 +84,10 @@ def detect_players(video_path):
         cv2.putText(output, "PLAYER %d" % (index + 1), (max(8, x), max(24, y - 9)), cv2.FONT_HERSHEY_SIMPLEX, .7, color, 2)
         name = "%s.jpg" % uuid.uuid4().hex
         cv2.imwrite(str(FRAME_DIR / name), output, [int(cv2.IMWRITE_JPEG_QUALITY), 84])
-        vertical = "近端" if y + h / 2 > height / 2 else "远端"
-        horizontal = "左侧" if x + w / 2 < width / 2 else "右侧"
+        vertical = "near-court" if y + h / 2 > height / 2 else "far-court"
+        horizontal = "left-side" if x + w / 2 < width / 2 else "right-side"
         candidates.append({
-            "id": str(index + 1), "label": "画面中的主要球员" if used_fallback else "%s%s球员" % (vertical, horizontal),
+            "id": str(index + 1), "label": "Main player in frame" if used_fallback else "%s, %s player" % (vertical, horizontal),
             "thumbnail": "/data/analysis/%s" % name,
             "bbox": [x / width, y / height, w / width, h / height],
         })
@@ -97,12 +97,12 @@ def detect_players(video_path):
 def analyze_video(video_path, movement="match", player_bbox=None, forced_contact_time=None):
     capture = cv2.VideoCapture(str(video_path))
     if not capture.isOpened():
-        raise ValueError("无法读取这个视频，请上传 MP4、MOV 或 WebM 文件。")
+        raise ValueError("This video could not be read. Upload an MP4, MOV, or WebM file.")
     frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = capture.get(cv2.CAP_PROP_FPS) or 30.0
     if frame_count < 8:
         capture.release()
-        raise ValueError("视频太短，无法识别完整动作。请上传包含准备到随挥的片段。")
+        raise ValueError("This video is too short to identify a complete movement. Include preparation through follow-through.")
     duration = frame_count / fps
     sample_count = min(900, max(30, int(duration * 8)))
     indices = np.linspace(0, frame_count - 1, sample_count, dtype=int)
@@ -194,7 +194,7 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
     capture.release()
     coverage = len(records) / sample_count if sample_count else 0
     if len(records) < 8 or coverage < 0.25:
-        raise ValueError("没有稳定识别到完整身体。请使用全身入镜、光线充足且镜头固定的视频。")
+        raise ValueError("A complete body was not detected consistently. Use a fixed, well-lit video with the full body in frame.")
 
     for side in ("left", "right"):
         previous = None
@@ -228,16 +228,16 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
     median_speed = speed_percentiles[side]["median"]
     motion_signal = min(1.0, max(0.0, (high_speed - median_speed) / max(high_speed, .04) * 1.35))
     movement_confidence = min(96, round(100 * (.55 * min(1.0, coverage) + .30 * pose_quality + .15 * motion_signal)))
-    movement_name = "整场比赛 · 动作轨迹"
+    movement_name = "Full match · Movement path"
     checks, frames, suggestions = [], [], []
-    goal_title = "未来 4 周提升动作稳定性：每周完成 3 次脚步、平衡与挥拍连贯训练"
+    goal_title = "Improve movement stability over the next 4 weeks with three footwork, balance, and swing-flow sessions each week"
 
     if movement_confidence < 45:
-        checks.append(check("身体动作轨迹", "unknown", "动作轨迹清晰度 %d%%" % movement_confidence, "画面中的身体关键点不够连续，本次不判断技术问题。建议固定机位并让球员在画面中更大、更清楚。"))
+        checks.append(check("Body-movement path", "unknown", "Movement clarity: %d%%" % movement_confidence, "Body landmarks were not continuous enough for a technical assessment. Use a fixed camera and keep the player larger and clearer in frame."))
         return {
-            "analysisVersion": 4, "analysisMode": "pose-only", "movementConfidence": movement_confidence,
+            "analysisVersion": 5, "analysisMode": "pose-only", "movementConfidence": movement_confidence,
             "movement": movement, "movementName": movement_name, "coverage": round(coverage * 100),
-            "overall": "身体动作轨迹不够清楚，本次不生成技术判断。", "checks": checks, "frames": [],
+            "overall": "The body-movement path was not clear enough to produce a technical assessment.", "checks": checks, "frames": [],
             "goal": goal_title, "exercises": [],
         }
 
@@ -259,27 +259,27 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
 
     observations = []
     if rotation_change < 16:
-        observations.append((.55, "上半身转动变化较小", "转体幅度", "动作窗口内肩线宽度变化约 %d%%" % round(rotation_change), "从这个机位看，挥拍前后肩线的投影变化较小。这可能表示上半身准备和释放不够明显；可以尝试先完成肩髋转动，再让手臂跟随。", "影子挥拍：转肩停顿后完成挥拍 10 次 × 3 组"))
+        observations.append((.55, "Limited upper-body rotation", "Rotation range", "Projected shoulder-line change: about %d%%" % round(rotation_change), "From this camera angle, the shoulder line changes very little through the swing window. Build a clearer unit turn during preparation, then let the arm follow the rotation into the swing.", "Shadow swings with a unit-turn pause: 10 reps × 3 sets"))
     else:
-        checks.append(check("转体幅度", "good", "肩线投影变化约 %d%%" % round(rotation_change), "画面中能看到挥拍窗口内较清楚的上半身转动变化。"))
+        checks.append(check("Rotation range", "good", "Projected shoulder-line change: about %d%%" % round(rotation_change), "The swing window shows a clear change in upper-body rotation."))
     if balance_rate < 72:
-        observations.append(((72 - balance_rate) / 55, "挥拍过程重心偏出支撑范围", "平衡稳定性", "约 %d%% 的动作帧中髋部中心位于双脚支撑范围内" % round(balance_rate), "在部分高速动作帧中，髋部中心移到双脚支撑范围之外。这可能影响击球后的恢复；可以降低重心，并在挥拍结束后保持两秒稳定。", "挥拍定格平衡 8 次 × 3 组"))
+        observations.append(((72 - balance_rate) / 55, "Centre of mass moves outside the base of support", "Balance stability", "Hip centre stayed between the feet in about %d%% of movement frames" % round(balance_rate), "In several high-speed frames, the hip centre moves beyond the support area between the feet. Lower your centre of gravity and finish each practice swing in a balanced position for two seconds.", "Swing-and-hold balance drill: 8 reps × 3 sets"))
     else:
-        checks.append(check("平衡稳定性", "good", "支撑范围内比例约 %d%%" % round(balance_rate), "大部分动作帧中，髋部中心保持在双脚支撑范围内。"))
+        checks.append(check("Balance stability", "good", "Within the base of support: about %d%%" % round(balance_rate), "The hip centre stays within the support area between the feet in most movement frames."))
     if stance_ratio < .72:
-        observations.append(((.72 - stance_ratio) / .45, "动作窗口内站位偏窄", "站位宽度", "双脚宽度约为肩宽的 %.1f 倍" % stance_ratio, "从这个机位看，高速挥拍阶段双脚距离较窄。这可能减少横向稳定性；可以把准备站位调整到接近肩宽，并用小碎步保持可移动状态。", "肩宽准备站位 + 分腿垫步 12 次 × 3 组"))
+        observations.append(((.72 - stance_ratio) / .45, "Narrow stance during the movement window", "Stance width", "Foot spacing: about %.1f times shoulder width" % stance_ratio, "During the high-speed swing window, your feet are closer together than your shoulders. Start near shoulder width and stay mobile with small adjustment steps before the swing.", "Shoulder-width ready stance plus split step: 12 reps × 3 sets"))
     elif stance_ratio > 2.15:
-        observations.append(((stance_ratio - 2.15) / 1.3, "动作窗口内站位偏宽", "站位宽度", "双脚宽度约为肩宽的 %.1f 倍" % stance_ratio, "从这个机位看，高速挥拍阶段站位较宽。这可能限制下一步移动；可以缩小一步，并在挥拍后立即做恢复步。", "挥拍后恢复步 10 次 × 3 组"))
+        observations.append(((stance_ratio - 2.15) / 1.3, "Wide stance during the movement window", "Stance width", "Foot spacing: about %.1f times shoulder width" % stance_ratio, "During the high-speed swing window, your feet are more than twice shoulder width apart. Narrow the base by one step and recover immediately after the follow-through.", "Swing followed by a recovery step: 10 reps × 3 sets"))
     else:
-        checks.append(check("站位宽度", "good", "约为肩宽的 %.1f 倍" % stance_ratio, "动作窗口内的站位宽度处于较稳定的范围。"))
+        checks.append(check("Stance width", "good", "About %.1f times shoulder width" % stance_ratio, "Stance width remains within a stable comparison range during the movement window."))
     if knee_angle > 158:
-        observations.append(((knee_angle - 158) / 22, "下肢屈曲较少", "下肢准备", "动作窗口内最小膝角约 %d°" % round(knee_angle), "从画面看，挥拍窗口内膝关节保持得较直。这可能减少向上和向前的发力空间；可以在准备阶段轻微屈膝，再自然伸展。", "屈膝—伸展影子挥拍 10 次 × 3 组"))
+        observations.append(((knee_angle - 158) / 22, "Limited lower-body flexion", "Lower-body preparation", "Smallest knee angle in the movement window: about %d°" % round(knee_angle), "Your knees remain relatively straight throughout the swing window. Add a small knee bend during preparation, then extend naturally as the swing moves forward.", "Knee-bend-to-extension shadow swings: 10 reps × 3 sets"))
     else:
-        checks.append(check("下肢准备", "good", "最小膝角约 %d°" % round(knee_angle), "动作窗口内能看到明确的下肢屈曲。"))
+        checks.append(check("Lower-body preparation", "good", "Smallest knee angle: about %d°" % round(knee_angle), "Clear lower-body flexion is visible during the movement window."))
     if swing_travel < 1.35:
-        observations.append(((1.35 - swing_travel) / 1.0, "挥拍轨迹较短", "挥拍连贯性", "手腕轨迹长度约为肩宽的 %.1f 倍" % swing_travel, "这个高速动作窗口内，持拍手的可见移动距离较短。这可能是紧张或准备较晚；可以先用慢速完整挥拍练习连贯轨迹，再逐渐加速。", "慢速完整挥拍 8 次 × 3 组"))
+        observations.append(((1.35 - swing_travel) / 1.0, "Short swing path", "Swing continuity", "Wrist-path length: about %.1f times shoulder width" % swing_travel, "The racket-side wrist travels only a short visible distance during this high-speed movement window. Rehearse the complete path slowly—from preparation through follow-through—before adding speed.", "Slow full-path shadow swings: 8 reps × 3 sets"))
     else:
-        checks.append(check("挥拍连贯性", "good", "轨迹长度约为肩宽的 %.1f 倍" % swing_travel, "持拍手在动作窗口内形成了清楚、连续的移动轨迹。"))
+        checks.append(check("Swing continuity", "good", "Path length: about %.1f times shoulder width" % swing_travel, "The racket-side wrist forms a clear, continuous movement path through the swing window."))
 
     observations.sort(key=lambda item: item[0], reverse=True)
     selected_observations = observations[:2]
@@ -289,12 +289,12 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
         output = peak["frame"].copy()
         drawing.draw_landmarks(output, peak["landmarks"], pose_module.POSE_CONNECTIONS)
         height, width = output.shape[:2]
-        if check_label == "转体幅度":
+        if check_label == "Rotation range":
             cv2.line(output, (int(peak["left_shoulder_x"] * width), int(peak["left_shoulder_y"] * height)), (int(peak["right_shoulder_x"] * width), int(peak["right_shoulder_y"] * height)), (55, 76, 235), 4)
-        elif check_label in {"平衡稳定性", "站位宽度"}:
+        elif check_label in {"Balance stability", "Stance width"}:
             cv2.line(output, (int(peak["left_ankle_x"] * width), int(peak["left_ankle_y"] * height)), (int(peak["right_ankle_x"] * width), int(peak["right_ankle_y"] * height)), (55, 76, 235), 4)
             cv2.circle(output, (int(peak["hip_x"] * width), int(peak["hip_y"] * height)), max(7, width // 90), (91, 240, 217), 3)
-        elif check_label == "挥拍连贯性":
+        elif check_label == "Swing continuity":
             trail = np.array([(int(x * width), int(y * height)) for x, y in wrist_points], dtype=np.int32)
             if len(trail) > 1:
                 cv2.polylines(output, [trail], False, (55, 76, 235), 4)
@@ -303,21 +303,21 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
         frames.append({"url": "/data/analysis/%s" % name, "label": label, "checkLabel": check_label, "time": round(peak_time, 2), "mistake": True})
 
     if selected_observations:
-        labels = "、".join(item[1] for item in selected_observations)
-        overall = "从身体动作轨迹中观察到：%s。以下是可能的改进方向。" % labels
-        goal_title = "未来 4 周改善%s：每周完成 3 次针对性动作训练" % selected_observations[0][1]
+        labels = ", ".join(item[1].lower() for item in selected_observations)
+        overall = "The body-movement path shows %s. The report below explains what is visible and how to improve it." % labels
+        goal_title = "Improve %s over the next 4 weeks with three focused movement sessions each week" % selected_observations[0][1].lower()
     else:
-        overall = "身体动作轨迹较稳定，本次没有观察到达到提示阈值的明显模式。"
-        suggestions.append("影子挥拍与恢复步组合 10 次 × 3 组")
+        overall = "The body-movement path is stable; no pattern reached the improvement threshold in this analysis."
+        suggestions.append("Shadow swing plus recovery step: 10 reps × 3 sets")
 
     if movement_confidence < 65:
         for item in checks:
             if item["status"] == "good":
                 item["status"] = "unknown"
-                item["feedback"] = "可见帧中的数值处于比较范围内，但动作轨迹清晰度不足，暂不把它标记为稳定优势。"
+                item["feedback"] = "The visible-frame measurement is within the comparison range, but movement clarity is too low to label it a reliable strength."
 
     return {
-        "analysisVersion": 4, "analysisMode": "pose-only", "movementConfidence": movement_confidence,
+        "analysisVersion": 5, "analysisMode": "pose-only", "movementConfidence": movement_confidence,
         "movement": movement, "movementName": movement_name, "coverage": round(coverage * 100),
         "overall": overall, "checks": checks, "frames": frames,
         "goal": goal_title, "exercises": suggestions,

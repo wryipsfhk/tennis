@@ -40,7 +40,7 @@ export default async (request) => {
       !config.binId ? "JSONBIN_BIN_ID" : "",
       !config.accessKey && !config.masterKey ? "JSONBIN_MASTER_KEY" : "",
     ].filter(Boolean);
-    return response(503, {error: `Netlify 缺少环境变量：${missing.join("、")}`, missing});
+    return response(503, {error: `Netlify is missing environment variables: ${missing.join(", ")}`, missing});
   }
 
   try {
@@ -56,11 +56,11 @@ export default async (request) => {
     if (request.method === "PUT") {
       const raw = await request.text();
       if (new TextEncoder().encode(raw).length > 95 * 1024) {
-        return response(413, {error: "账户数据已接近 JSONBin 免费 Bin 的大小上限。"});
+        return response(413, {error: "The account data is approaching the JSONBin free-bin size limit."});
       }
       const accounts = JSON.parse(raw);
       if (!accounts || Array.isArray(accounts) || typeof accounts !== "object") {
-        return response(400, {error: "账户数据必须是对象。"});
+        return response(400, {error: "Account data must be an object."});
       }
       const remote = await fetch(`${JSONBIN_BASE_URL}/${config.binId}`, {
         method: "PUT",
@@ -72,9 +72,9 @@ export default async (request) => {
       return response(200, {saved: true, storage: "jsonbin"});
     }
 
-    return response(405, {error: "不支持此请求方式。"});
+    return response(405, {error: "This request method is not supported."});
   } catch (error) {
-    return response(502, {error: `JSONBin 同步失败：${error.message || "未知错误"}`});
+    return response(502, {error: `JSONBin sync failed: ${error.message || "Unknown error"}`});
   }
 };
 
