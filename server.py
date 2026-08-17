@@ -6,8 +6,6 @@ import mimetypes
 import os
 import sqlite3
 import threading
-import uuid
-import cgi
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -18,7 +16,6 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DATABASE = Path(os.environ.get("ACEPOINT_DATABASE", str(DATA_DIR / "tennis.db"))).expanduser()
-UPLOAD_DIR = DATA_DIR / "uploads"
 ENV_FILE = ROOT / ".env"
 
 
@@ -160,19 +157,6 @@ class TennisHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
-        if path == "/api/analysis-capabilities":
-            self.send_json(200, {
-                "available": True,
-                "analysisVersion": 7,
-                "mode": "pose-only-multi-window-v2",
-                "poseTracking": True,
-                "playerTracking": True,
-                "multiWindow": True,
-                "ballTracking": False,
-                "contactDetection": False,
-                "message": "This backend reviews body movement only. It does not locate the ball or infer contact.",
-            })
-            return
         if path == "/api/storage-status":
             self.send_json(200, {
                 "configured": STORAGE_STATUS["configured"],
@@ -208,103 +192,6 @@ class TennisHandler(BaseHTTPRequestHandler):
             })
         except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as error:
             self.send_json(400, {"error": str(error)})
-
-    def do_POST(self):
-        path = urlparse(self.path).path
-        if path not in {"/api/prepare-analysis", "/api/analyze-match"}:
-            self.send_json(404, {"error": "API endpoint not found"})
-            return
-        if path == "/api/analyze-match":
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                upload_id = str(payload.get("uploadId", ""))
-                bbox = payload.get("bbox")
-                if not upload_id or not isinstance(bbox, list) or len(bbox) != 4:
-                    raise ValueError("Select the player to analyze.")
-                if not upload_id.replace("-", "").replace("_", "").isalnum():
-                    raise ValueError("The upload identifier is invalid.")
-                bbox = [float(value) for value in bbox]
-                if any(not 0 <= value <= 1 for value in bbox) or bbox[2] <= 0.02 or bbox[3] <= 0.05 or bbox[0] + bbox[2] > 1.01 or bbox[1] + bbox[3] > 1.01:
-                    raise ValueError("The selected player area is invalid. Upload the video and select the player again.")
-                matches = list(UPLOAD_DIR.glob("%s.*" % upload_id))
-                if not matches:
-                    raise ValueError("The uploaded video could not be found. Please upload it again.")
-                from analyzer import analyze_video
-                result = analyze_video(matches[0], "match", bbox)
-                result["videoUrl"] = "/data/uploads/%s" % matches[0].name
-                result["id"] = uuid.uuid4().hex
-                result["uploadId"] = upload_id
-                result["playerBBox"] = bbox
-                self.send_json(200, result)
-            except (ValueError, KeyError, json.JSONDecodeError, UnicodeDecodeError) as error:
-                self.send_json(400, {"error": str(error)})
-            except Exception as error:
-                print("analysis error:", repr(error))
-                self.send_json(500, {"error": "The full-match analysis could not be completed. Try a clearer video."})
-            return
-        destination = None
-        try:
-            length = int(self.headers.get("Content-Length", "0"))
-            if length <= 0 or length > 250 * 1024 * 1024:
-                self.send_json(413, {"error": "Video must be no larger than 250 MB."})
-                return
-            form = cgi.FieldStorage(
-                fp=self.rfile,
-                headers=self.headers,
-                environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": self.headers.get("Content-Type", "")},
-            )
-            video = form["video"] if "video" in form else None
-            if video is None or not getattr(video, "file", None):
-                raise ValueError("Choose a video.")
-            suffix = Path(getattr(video, "filename", "video.mp4")).suffix.lower()
-            if suffix not in {".mp4", ".mov", ".m4v", ".webm", ".avi"}:
-                raise ValueError("Upload an MP4, MOV, M4V, WebM, or AVI video.")
-            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-            name = "%s%s" % (uuid.uuid4().hex, suffix)
-            destination = UPLOAD_DIR / name
-            written = 0
-            with destination.open("wb") as output:
-                while True:
-                    chunk = video.file.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    written += len(chunk)
-                    if written > 250 * 1024 * 1024:
-                        destination.unlink(missing_ok=True)
-                        self.send_json(413, {"error": "Video must be no larger than 250 MB."})
-                        return
-                    output.write(chunk)
-            from analyzer import detect_players
-            candidates = detect_players(destination)
-            capture = None
-            try:
-                import cv2
-                capture = cv2.VideoCapture(str(destination))
-                fps = float(capture.get(cv2.CAP_PROP_FPS) or 0)
-                frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-                duration = round(frame_count / fps, 2) if fps else None
-            finally:
-                if capture is not None:
-                    capture.release()
-            self.send_json(200, {
-                "uploadId": destination.stem,
-                "videoUrl": "/data/uploads/%s" % name,
-                "candidates": candidates,
-                "needsSelection": len(candidates) > 1,
-                "duration": duration,
-                "analysisMode": "pose-only-multi-window-v2",
-                "ballTracking": False,
-            })
-        except (ValueError, KeyError) as error:
-            if destination and destination.exists():
-                destination.unlink()
-            self.send_json(400, {"error": str(error)})
-        except Exception as error:
-            if destination and destination.exists():
-                destination.unlink()
-            print("analysis error:", repr(error))
-            self.send_json(500, {"error": "Video analysis could not be completed. Try a clear, shorter video."})
 
     def serve_file(self, request_path, include_body):
         relative = unquote(request_path).lstrip("/") or "index.html"

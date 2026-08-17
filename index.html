@@ -225,15 +225,15 @@
       </div>
 
       <div class="view" id="analysisView">
-        <section class="page-intro"><span class="eyebrow eyebrow--green">Match Video Analysis</span><h1>Let your movement reveal the pattern.</h1><p>Upload a match video. The system tracks the selected player’s body movement across distinct windows—not the ball or contact.</p><div class="analysis-capability" id="analysisCapability"><i></i><span>Checking whether the Python analysis service is available…</span></div></section>
+        <section class="page-intro"><span class="eyebrow eyebrow--green">Match Video Analysis</span><h1>Let your movement reveal the pattern.</h1><p>Upload a match video. AcePoint samples frames and follows the selected player’s visible body movement across distinct windows—entirely in your browser.</p><div class="analysis-capability" id="analysisCapability"><i></i><span>Checking browser analysis support…</span></div></section>
         <div class="motion-layout">
           <form class="panel motion-upload" id="motionForm">
             <div class="motion-step"><b>01</b><span>Upload a full match</span></div>
-            <label class="motion-drop" id="motionDrop"><input id="motionVideo" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v,video/avi" required /><span class="motion-camera">▶</span><strong id="motionFileName">Choose match video</strong><small>Keep the player fully visible, the camera steady, and the image clear · 250 MB max</small></label>
+            <label class="motion-drop" id="motionDrop"><input id="motionVideo" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" required /><span class="motion-camera">▶</span><strong id="motionFileName">Choose match video</strong><small>MP4, MOV, M4V, or WebM · 120 MB and 45 minutes max · processed on this device</small></label>
             <video id="motionPreview" controls hidden></video>
             <button class="primary-button primary-button--wide" id="analyzeButton" type="submit">Identify Players <span>→</span></button>
             <div class="player-selection" id="playerSelection" hidden><div class="motion-step"><b>02</b><span>Choose the player to analyze</span></div><p>Multiple players were detected. Select yourself before starting the analysis.</p><div class="player-candidates" id="playerCandidates"></div><button class="primary-button primary-button--wide" id="confirmPlayerButton" type="button">Confirm and Analyze Video <span>→</span></button></div>
-            <div class="analysis-loading" id="analysisLoading" hidden><i></i><strong id="analysisLoadingTitle">Reading match video</strong><span>The system reviews the full video and captures movement patterns to improve. Longer videos take more time.</span></div>
+            <div class="analysis-loading" id="analysisLoading" hidden><i></i><strong id="analysisLoadingTitle">Reading match video</strong><span id="analysisLoadingDetail">Preparing sampled frames without uploading the video.</span><div class="analysis-progress" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><b id="analysisProgressBar"></b></div><small id="analysisProgressValue">0%</small></div>
             <p class="form-error analysis-error" id="analysisError" role="alert"></p>
           </form>
           <section class="motion-result-column"><div id="analysisResult"><div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Your movement windows, observations, and possible improvements will appear here.</p></div></div><div class="analysis-history" id="analysisHistory"></div></section>
@@ -287,6 +287,6 @@
   <dialog class="coaching-video-modal" id="coachingVideoModal"><div class="coaching-modal-head"><div><span>Technique Demonstration</span><h2 id="coachingModalTitle"></h2><p id="coachingModalChapter"></p></div><button type="button" id="coachingModalClose" aria-label="Close coaching video">×</button></div><div class="coaching-modal-player" id="coachingModalPlayer"></div></dialog>
   <dialog class="modal analysis-name-modal" id="analysisNameModal"><form id="analysisNameForm"><button class="modal-close" id="analysisNameClose" type="button" aria-label="Close">×</button><span class="eyebrow eyebrow--green">ANALYSIS NAME</span><h2>Name This Analysis</h2><p>The original date and time will remain in the history.</p><label class="field"><span>Name</span><input id="analysisNameInput" maxlength="40" required /></label><button class="primary-button primary-button--wide" type="submit">Save Name <span>→</span></button></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260817-2"></script>
+  <script src="app.js?v=20260817-3"></script>
 </body>
 </html>
