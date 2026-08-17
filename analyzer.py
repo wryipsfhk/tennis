@@ -216,12 +216,28 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
         for side in ("left", "right")
     }
     side = max(("left", "right"), key=lambda value: speed_percentiles[value]["high"])
-    peak = max(records, key=lambda record: record[f"{side}_speed"])
+    ranked_peaks = sorted(records, key=lambda record: record[f"{side}_speed"], reverse=True)
+    peaks = []
+    for candidate in ranked_peaks:
+        candidate_time = candidate["index"] / fps
+        if candidate[f"{side}_speed"] < speed_percentiles[side]["high"] * .62:
+            continue
+        if all(abs(candidate_time - existing["index"] / fps) >= 2.25 for existing in peaks):
+            peaks.append(candidate)
+        if len(peaks) >= 5:
+            break
+    if not peaks:
+        peaks = [ranked_peaks[0]]
+    peak = peaks[0]
     peak_time = peak["index"] / fps
-    window = [record for record in records if abs(record["index"] - peak["index"]) / fps <= .85]
-    if len(window) < 4:
-        window = sorted(records, key=lambda record: abs(record["index"] - peak["index"]))[:6]
-        window.sort(key=lambda record: record["index"])
+    event_windows = []
+    for event_peak in peaks:
+        event_window = [record for record in records if abs(record["index"] - event_peak["index"]) / fps <= .85]
+        if len(event_window) < 4:
+            event_window = sorted(records, key=lambda record: abs(record["index"] - event_peak["index"]))[:6]
+            event_window.sort(key=lambda record: record["index"])
+        event_windows.append(event_window)
+    window = event_windows[0]
 
     pose_quality = float(np.mean([record["pose_quality"] for record in window]))
     high_speed = speed_percentiles[side]["high"]
@@ -235,27 +251,39 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
     if movement_confidence < 45:
         checks.append(check("Body-movement path", "unknown", "Movement clarity: %d%%" % movement_confidence, "Body landmarks were not continuous enough for a technical assessment. Use a fixed camera and keep the player larger and clearer in frame."))
         return {
-            "analysisVersion": 5, "analysisMode": "pose-only", "movementConfidence": movement_confidence,
+            "analysisVersion": 6, "analysisMode": "multi-window-pose", "movementConfidence": movement_confidence,
             "movement": movement, "movementName": movement_name, "coverage": round(coverage * 100),
             "overall": "The body-movement path was not clear enough to produce a technical assessment.", "checks": checks, "frames": [],
             "goal": goal_title, "exercises": [],
         }
 
+    event_metrics = []
+    for event_window in event_windows:
+        shoulders = [abs(record["right_shoulder_x"] - record["left_shoulder_x"]) for record in event_window]
+        ankles = [abs(record["right_ankle_x"] - record["left_ankle_x"]) for record in event_window]
+        balance_samples = []
+        for record in event_window:
+            foot_min, foot_max = sorted((record["left_ankle_x"], record["right_ankle_x"]))
+            margin = max((foot_max - foot_min) * .12, .015)
+            balance_samples.append(foot_min - margin <= record["hip_x"] <= foot_max + margin)
+        wrist_path = [(record[f"{side}_wrist_x"], record[f"{side}_wrist_y"]) for record in event_window]
+        wrist_travel = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(wrist_path, wrist_path[1:]))
+        event_metrics.append({
+            "rotation": (max(shoulders) - min(shoulders)) / max(max(shoulders), .04) * 100,
+            "stance": float(np.median([ankle / max(shoulder, .04) for ankle, shoulder in zip(ankles, shoulders)])),
+            "balance": sum(balance_samples) / len(balance_samples) * 100,
+            "knee": min(record["knee"] for record in event_window),
+            "swing": wrist_travel / max(float(np.median(shoulders)), .04),
+            "head": (max(record["head_y"] for record in event_window) - min(record["head_y"] for record in event_window)) / max(float(np.median(shoulders)), .04),
+        })
+    rotation_change = float(np.median([item["rotation"] for item in event_metrics]))
+    stance_ratio = float(np.median([item["stance"] for item in event_metrics]))
+    balance_rate = float(np.median([item["balance"] for item in event_metrics]))
+    knee_angle = float(np.median([item["knee"] for item in event_metrics]))
+    swing_travel = float(np.median([item["swing"] for item in event_metrics]))
+    head_movement = float(np.median([item["head"] for item in event_metrics]))
     shoulder_widths = [abs(record["right_shoulder_x"] - record["left_shoulder_x"]) for record in window]
-    ankle_widths = [abs(record["right_ankle_x"] - record["left_ankle_x"]) for record in window]
-    rotation_change = (max(shoulder_widths) - min(shoulder_widths)) / max(max(shoulder_widths), .04) * 100
-    stance_ratio = float(np.median([ankle / max(shoulder, .04) for ankle, shoulder in zip(ankle_widths, shoulder_widths)]))
-    balance_samples = []
-    for record in window:
-        foot_min, foot_max = sorted((record["left_ankle_x"], record["right_ankle_x"]))
-        margin = max((foot_max - foot_min) * .12, .015)
-        balance_samples.append(foot_min - margin <= record["hip_x"] <= foot_max + margin)
-    balance_rate = sum(balance_samples) / len(balance_samples) * 100
-    knee_angle = min(record["knee"] for record in window)
     wrist_points = [(record[f"{side}_wrist_x"], record[f"{side}_wrist_y"]) for record in window]
-    wrist_travel = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(wrist_points, wrist_points[1:]))
-    median_shoulder = max(float(np.median(shoulder_widths)), .04)
-    swing_travel = wrist_travel / median_shoulder
 
     observations = []
     if rotation_change < 16:
@@ -280,27 +308,34 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
         observations.append(((1.35 - swing_travel) / 1.0, "Short swing path", "Swing continuity", "Wrist-path length: about %.1f times shoulder width" % swing_travel, "The racket-side wrist travels only a short visible distance during this high-speed movement window. Rehearse the complete path slowly—from preparation through follow-through—before adding speed.", "Slow full-path shadow swings: 8 reps × 3 sets"))
     else:
         checks.append(check("Swing continuity", "good", "Path length: about %.1f times shoulder width" % swing_travel, "The racket-side wrist forms a clear, continuous movement path through the swing window."))
+    if head_movement > .62:
+        observations.append((min(1.0, (head_movement - .62) / .7), "Large head-height change through the swing", "Posture stability", "Vertical head movement: about %.1f times shoulder width" % head_movement, "Across the clearest swing windows, head height changes sharply. Rehearse staying level through preparation and the forward swing, then allow the finish to lift naturally.", "Level-head shadow swings beside a visual marker: 8 reps × 3 sets"))
+    else:
+        checks.append(check("Posture stability", "good", "Vertical head movement: about %.1f times shoulder width" % head_movement, "Head height remains comparatively stable across the reviewed swing windows."))
 
     observations.sort(key=lambda item: item[0], reverse=True)
     selected_observations = observations[:2]
-    for _, label, check_label, measured, feedback, exercise in selected_observations:
+    for observation_index, (_, label, check_label, measured, feedback, exercise) in enumerate(selected_observations):
         checks.append(check(check_label, "warn", measured, feedback))
         suggestions.append(exercise)
-        output = peak["frame"].copy()
-        drawing.draw_landmarks(output, peak["landmarks"], pose_module.POSE_CONNECTIONS)
+        evidence_peak = peaks[min(observation_index, len(peaks) - 1)]
+        evidence_window = event_windows[min(observation_index, len(event_windows) - 1)]
+        evidence_time = evidence_peak["index"] / fps
+        output = evidence_peak["frame"].copy()
+        drawing.draw_landmarks(output, evidence_peak["landmarks"], pose_module.POSE_CONNECTIONS)
         height, width = output.shape[:2]
         if check_label == "Rotation range":
-            cv2.line(output, (int(peak["left_shoulder_x"] * width), int(peak["left_shoulder_y"] * height)), (int(peak["right_shoulder_x"] * width), int(peak["right_shoulder_y"] * height)), (55, 76, 235), 4)
+            cv2.line(output, (int(evidence_peak["left_shoulder_x"] * width), int(evidence_peak["left_shoulder_y"] * height)), (int(evidence_peak["right_shoulder_x"] * width), int(evidence_peak["right_shoulder_y"] * height)), (55, 76, 235), 4)
         elif check_label in {"Balance stability", "Stance width"}:
-            cv2.line(output, (int(peak["left_ankle_x"] * width), int(peak["left_ankle_y"] * height)), (int(peak["right_ankle_x"] * width), int(peak["right_ankle_y"] * height)), (55, 76, 235), 4)
-            cv2.circle(output, (int(peak["hip_x"] * width), int(peak["hip_y"] * height)), max(7, width // 90), (91, 240, 217), 3)
+            cv2.line(output, (int(evidence_peak["left_ankle_x"] * width), int(evidence_peak["left_ankle_y"] * height)), (int(evidence_peak["right_ankle_x"] * width), int(evidence_peak["right_ankle_y"] * height)), (55, 76, 235), 4)
+            cv2.circle(output, (int(evidence_peak["hip_x"] * width), int(evidence_peak["hip_y"] * height)), max(7, width // 90), (91, 240, 217), 3)
         elif check_label == "Swing continuity":
-            trail = np.array([(int(x * width), int(y * height)) for x, y in wrist_points], dtype=np.int32)
+            trail = np.array([(int(record[f"{side}_wrist_x"] * width), int(record[f"{side}_wrist_y"] * height)) for record in evidence_window], dtype=np.int32)
             if len(trail) > 1:
                 cv2.polylines(output, [trail], False, (55, 76, 235), 4)
         name = "%s.jpg" % uuid.uuid4().hex
         cv2.imwrite(str(FRAME_DIR / name), output, [int(cv2.IMWRITE_JPEG_QUALITY), 88])
-        frames.append({"url": "/data/analysis/%s" % name, "label": label, "checkLabel": check_label, "time": round(peak_time, 2), "mistake": True})
+        frames.append({"url": "/data/analysis/%s" % name, "label": label, "checkLabel": check_label, "time": round(evidence_time, 2), "mistake": True})
 
     if selected_observations:
         labels = ", ".join(item[1].lower() for item in selected_observations)
@@ -317,9 +352,9 @@ def analyze_video(video_path, movement="match", player_bbox=None, forced_contact
                 item["feedback"] = "The visible-frame measurement is within the comparison range, but movement clarity is too low to label it a reliable strength."
 
     return {
-        "analysisVersion": 5, "analysisMode": "pose-only", "movementConfidence": movement_confidence,
+        "analysisVersion": 6, "analysisMode": "multi-window-pose", "movementConfidence": movement_confidence,
         "movement": movement, "movementName": movement_name, "coverage": round(coverage * 100),
         "overall": overall, "checks": checks, "frames": frames,
         "goal": goal_title, "exercises": suggestions,
-        "movementMetrics": {"rotationChange": round(rotation_change), "balanceRate": round(balance_rate), "stanceRatio": round(stance_ratio, 2), "kneeAngle": round(knee_angle), "swingTravel": round(swing_travel, 2)},
+        "movementMetrics": {"reviewedWindows": len(event_windows), "rotationChange": round(rotation_change), "balanceRate": round(balance_rate), "stanceRatio": round(stance_ratio, 2), "kneeAngle": round(knee_angle), "swingTravel": round(swing_travel, 2), "headMovement": round(head_movement, 2)},
     }
