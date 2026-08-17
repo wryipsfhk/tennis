@@ -23,7 +23,7 @@ function configuration() {
 function jsonBinHeaders(config, write = false) {
   const headers = {
     "X-Bin-Meta": "false",
-    "User-Agent": "TennisProgress-Netlify/1.0",
+    "User-Agent": "AcePoint-Netlify/1.0",
   };
   headers[config.accessKey ? "X-Access-Key" : "X-Master-Key"] = config.accessKey || config.masterKey;
   if (write) {

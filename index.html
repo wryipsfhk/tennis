@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#087f73" />
   <title>AcePoint — Your Tennis Progress Journal</title>
   <meta name="description" content="Review match footage, record results, and keep your next training focus in one place with AcePoint." />
-  <link rel="stylesheet" href="styles.css?v=20260817-1" />
+  <link rel="stylesheet" href="styles.css?v=20260817-2" />
 </head>
 <body>
   <section class="login-page landing-page" id="loginPage" aria-label="AcePoint public website">
@@ -21,19 +21,19 @@
         <div class="hero-court-lines" aria-hidden="true"><i></i><i></i><i></i></div>
         <div class="landing-hero-copy">
           <span class="landing-kicker">Match review, built for tennis players</span>
-          <h1>See the match<br><em>you actually played.</em></h1>
-          <p>Turn your footage, score and reflections into a focused review—and know exactly what to train next.</p>
+          <h1>You played the match.<br><em>Now learn from it.</em></h1>
+          <p>Review match footage, record results, and keep your next training focus in one place.</p>
           <div class="landing-actions"><button class="landing-try landing-try--light" type="button" data-open-signup>Try AcePoint <span>↗</span></button><a href="#how-it-works">See how it works <span>↓</span></a></div>
           <div class="hero-trust"><span>Private player journal</span><span>Match-by-match history</span><span>Evidence before advice</span></div>
         </div>
         <div class="hero-film" aria-label="Preview of a tennis movement review">
-          <div class="film-head"><span>MATCH FILM · 03 MOMENTS</span><b>01:42 / 06:18</b></div>
+          <div class="film-head"><span>MATCH FILM · MOVEMENT WINDOWS</span><b>BODY-POSE REVIEW</b></div>
           <div class="film-frames">
             <article><i></i><span>LOAD</span><b>Ready position</b></article>
             <article class="is-focus"><i></i><span>SWING</span><b>Rotation window</b></article>
             <article><i></i><span>RECOVER</span><b>First step back</b></article>
           </div>
-          <div class="film-readout"><span>Movement clarity</span><strong>86%</strong><i></i><p>Clear enough to review across multiple swing windows.</p></div>
+          <div class="film-readout"><span>Analysis approach</span><strong>Pose only</strong><i></i><p>Multiple movement windows, with no ball or contact claims.</p></div>
         </div>
       </section>
 
@@ -101,7 +101,7 @@
   <div class="app-shell" id="appShell" hidden>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
-        <a class="brand" href="#" aria-label="Return home"><span class="brand-ball"></span></a>
+        <a class="brand app-brand" href="#" aria-label="Return to recent results"><span class="brand-ball"></span><span class="app-wordmark">AcePoint</span></a>
         <button class="sidebar-close" id="sidebarClose" aria-label="Close menu">×</button>
       </div>
       <div class="player-mini">
@@ -132,7 +132,7 @@
         <button class="menu-button" id="menuButton" aria-label="Open menu">☰</button>
         <div class="top-title"><span id="pageKicker">Today</span><strong id="pageTitle">Good afternoon</strong></div>
         <div class="top-actions">
-          <button type="button" class="quick-add" data-view="new-match">＋ Log Match</button>
+          <button type="button" class="quick-add" data-view="new-match">Log match <span>↗</span></button>
         </div>
       </header>
 
@@ -237,7 +237,7 @@
       </div>
 
       <div class="view" id="analysisView">
-        <section class="page-intro"><span class="eyebrow eyebrow--green">Match Video Analysis</span><h1>Let your movement reveal the pattern.</h1><p>Upload a match video. The system reviews rotation, balance, swing path, stance, and lower-body preparation—not ball position.</p></section>
+        <section class="page-intro"><span class="eyebrow eyebrow--green">Match Video Analysis</span><h1>Let your movement reveal the pattern.</h1><p>Upload a match video. The system tracks the selected player’s body movement across distinct windows—not the ball or contact.</p><div class="analysis-capability" id="analysisCapability"><i></i><span>Checking whether the Python analysis service is available…</span></div></section>
         <div class="motion-layout">
           <form class="panel motion-upload" id="motionForm">
             <div class="motion-step"><b>01</b><span>Upload a full match</span></div>
@@ -299,6 +299,6 @@
   <dialog class="coaching-video-modal" id="coachingVideoModal"><div class="coaching-modal-head"><div><span>Technique Demonstration</span><h2 id="coachingModalTitle"></h2><p id="coachingModalChapter"></p></div><button type="button" id="coachingModalClose" aria-label="Close coaching video">×</button></div><div class="coaching-modal-player" id="coachingModalPlayer"></div></dialog>
   <dialog class="modal analysis-name-modal" id="analysisNameModal"><form id="analysisNameForm"><button class="modal-close" id="analysisNameClose" type="button" aria-label="Close">×</button><span class="eyebrow eyebrow--green">ANALYSIS NAME</span><h2>Name This Analysis</h2><p>The original date and time will remain in the history.</p><label class="field"><span>Name</span><input id="analysisNameInput" maxlength="40" required /></label><button class="primary-button primary-button--wide" type="submit">Save Name <span>→</span></button></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260817-1"></script>
+  <script src="app.js?v=20260817-2"></script>
 </body>
 </html>

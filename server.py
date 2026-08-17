@@ -17,7 +17,7 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
-DATABASE = DATA_DIR / "tennis.db"
+DATABASE = Path(os.environ.get("ACEPOINT_DATABASE", str(DATA_DIR / "tennis.db"))).expanduser()
 UPLOAD_DIR = DATA_DIR / "uploads"
 ENV_FILE = ROOT / ".env"
 
@@ -47,7 +47,7 @@ class RemoteStorageError(Exception):
 
 
 def connect():
-    DATA_DIR.mkdir(exist_ok=True)
+    DATABASE.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(str(DATABASE))
     connection.execute(
         "CREATE TABLE IF NOT EXISTS accounts (email TEXT PRIMARY KEY, payload TEXT NOT NULL)"
@@ -82,7 +82,7 @@ def write_local_accounts(accounts):
 
 
 def jsonbin_headers(include_content_type=False):
-    headers = {"X-Bin-Meta": "false", "User-Agent": "TennisProgress/1.0"}
+    headers = {"X-Bin-Meta": "false", "User-Agent": "AcePoint/1.0"}
     if JSONBIN_ACCESS_KEY:
         headers["X-Access-Key"] = JSONBIN_ACCESS_KEY
     else:
@@ -147,7 +147,7 @@ def write_accounts(accounts):
 
 
 class TennisHandler(BaseHTTPRequestHandler):
-    server_version = "TennisProgress/1.0"
+    server_version = "AcePoint/1.0"
 
     def send_json(self, status, payload):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -160,6 +160,19 @@ class TennisHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == "/api/analysis-capabilities":
+            self.send_json(200, {
+                "available": True,
+                "analysisVersion": 7,
+                "mode": "pose-only-multi-window-v2",
+                "poseTracking": True,
+                "playerTracking": True,
+                "multiWindow": True,
+                "ballTracking": False,
+                "contactDetection": False,
+                "message": "This backend reviews body movement only. It does not locate the ball or infer contact.",
+            })
+            return
         if path == "/api/storage-status":
             self.send_json(200, {
                 "configured": STORAGE_STATUS["configured"],
@@ -209,12 +222,16 @@ class TennisHandler(BaseHTTPRequestHandler):
                 bbox = payload.get("bbox")
                 if not upload_id or not isinstance(bbox, list) or len(bbox) != 4:
                     raise ValueError("Select the player to analyze.")
+                if not upload_id.replace("-", "").replace("_", "").isalnum():
+                    raise ValueError("The upload identifier is invalid.")
+                bbox = [float(value) for value in bbox]
+                if any(not 0 <= value <= 1 for value in bbox) or bbox[2] <= 0.02 or bbox[3] <= 0.05 or bbox[0] + bbox[2] > 1.01 or bbox[1] + bbox[3] > 1.01:
+                    raise ValueError("The selected player area is invalid. Upload the video and select the player again.")
                 matches = list(UPLOAD_DIR.glob("%s.*" % upload_id))
                 if not matches:
                     raise ValueError("The uploaded video could not be found. Please upload it again.")
                 from analyzer import analyze_video
-                contact_time = payload.get("contactTime")
-                result = analyze_video(matches[0], "match", [float(value) for value in bbox], float(contact_time) if contact_time is not None else None)
+                result = analyze_video(matches[0], "match", bbox)
                 result["videoUrl"] = "/data/uploads/%s" % matches[0].name
                 result["id"] = uuid.uuid4().hex
                 result["uploadId"] = upload_id
@@ -260,11 +277,24 @@ class TennisHandler(BaseHTTPRequestHandler):
                     output.write(chunk)
             from analyzer import detect_players
             candidates = detect_players(destination)
+            capture = None
+            try:
+                import cv2
+                capture = cv2.VideoCapture(str(destination))
+                fps = float(capture.get(cv2.CAP_PROP_FPS) or 0)
+                frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+                duration = round(frame_count / fps, 2) if fps else None
+            finally:
+                if capture is not None:
+                    capture.release()
             self.send_json(200, {
                 "uploadId": destination.stem,
                 "videoUrl": "/data/uploads/%s" % name,
                 "candidates": candidates,
                 "needsSelection": len(candidates) > 1,
+                "duration": duration,
+                "analysisMode": "pose-only-multi-window-v2",
+                "ballTracking": False,
             })
         except (ValueError, KeyError) as error:
             if destination and destination.exists():
@@ -330,7 +360,9 @@ class TennisHandler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     with connect():
         pass
-    address = ("127.0.0.1", 4173)
-    print("Tennis website: http://127.0.0.1:4173/")
+    port = int(os.environ.get("PORT", "4173"))
+    host = os.environ.get("HOST", "127.0.0.1")
+    address = (host, port)
+    print("Tennis website: http://%s:%d/" % (host, port))
     print("SQLite database: %s" % DATABASE)
     ThreadingHTTPServer(address, TennisHandler).serve_forever()

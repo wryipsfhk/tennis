@@ -16,7 +16,7 @@ export default async () => {
   try {
     const auth = accessKey ? {"X-Access-Key": accessKey} : {"X-Master-Key": masterKey};
     const remote = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest?meta=false`, {
-      headers: {...auth, "X-Bin-Meta": "false", "User-Agent": "TennisProgress-Netlify/1.0"},
+      headers: {...auth, "X-Bin-Meta": "false", "User-Agent": "AcePoint-Netlify/1.0"},
     });
     if (!remote.ok) throw new Error(`JSONBin ${remote.status}`);
     return new Response(JSON.stringify({configured: true, connected: true, backend: "jsonbin", message: "Connected to JSONBin"}), {status: 200, headers});
