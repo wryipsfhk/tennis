@@ -6,7 +6,7 @@ An English-language tennis progress tracker with personal accounts, match scorin
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/bin/pip install -r backend-requirements.txt
 .venv/bin/python server.py
 ```
 
@@ -38,7 +38,7 @@ Redeploy after saving the variables. Accounts, matches, goals, calendar entries,
 
 ### Video-analysis deployment is separate
 
-Netlify serves the static frontend and JavaScript functions; it cannot run this long-lived OpenCV/MediaPipe Python server. Deploy `server.py`, `analyzer.py`, `requirements.txt`, and the writable `data/uploads` plus `data/analysis` directories to a Python host with persistent storage. Then proxy these three frontend paths to that service:
+Netlify serves the static frontend and JavaScript functions; it cannot run this long-lived OpenCV/MediaPipe Python server. Deploy `server.py`, `analyzer.py`, `backend-requirements.txt`, and the writable `data/uploads` plus `data/analysis` directories to a Python host with persistent storage. Then proxy these three frontend paths to that service:
 
 - `/api/analysis-capabilities`
 - `/api/prepare-analysis`
