@@ -16,4 +16,6 @@ test('analysis remains local first, then syncs private chunks',async()=>{
   assert.ok(localSave>=0&&cloudUpload>localSave);
   assert.match(source,/\/chunk`/);
   assert.match(source,/cloudVideo=true/);
+  assert.match(source,/Sync video now/);
+  assert.match(source,/Video synced across devices/);
 });
