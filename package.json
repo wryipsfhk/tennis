@@ -1,0 +1,13 @@
+{
+  "name": "acepoint",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "build": "mkdir -p dist && cp index.html app.js client-analyzer.js pose-worker.js styles.css dist/"
+  },
+  "dependencies": {
+    "@netlify/blobs": "10.7.13"
+  }
+}

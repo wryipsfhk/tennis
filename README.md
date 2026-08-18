@@ -1,35 +1,44 @@
 # AcePoint
 
-An English-language tennis progress tracker with personal accounts, match scoring, emoji-based satisfaction ratings, post-match reflection, monthly trends, a match calendar, SMART goals, training plans, and movement analysis.
+AcePoint is an English-language tennis journal for match records, trends, calendar entries, SMART goals, training plans, and on-device movement analysis.
+
+## Private cross-device storage
+
+Movement analysis still runs locally in the browser with MediaPipe Tasks Vision/WebAssembly. Once processing finishes, AcePoint saves the report to the authenticated account and uploads the original video in 4 MB chunks. The browser keeps an IndexedDB copy as a local-first fallback.
+
+Production storage uses two private, site-wide Netlify Blob stores:
+
+- `acepoint-accounts-v2`: one JSON account document per SHA-256 email identifier. Password hashes and session versions are never returned by account APIs.
+- `acepoint-private-videos-v1`: owner-scoped manifests and chunks under `<account-id>/<analysis-id>/…`.
+
+`/api/account` and every `/api/videos/*` mutation require a signed Bearer session. The server derives the storage key from that session and confirms the analysis belongs to the account. Playback uses a video-only ticket scoped to one analysis and expiring after 10 minutes. Raw Blob keys are never exposed.
+
+Existing JSONBin accounts are migrated into the private account store on their first successful login. The old collection-wide `/api/accounts` endpoint has been removed.
 
 ## Run locally
 
 ```bash
+npm install
 python3 server.py
 ```
 
-Open `http://127.0.0.1:4173`. New users should choose **Create account**, then sign in with their own email and password.
+Open `http://127.0.0.1:4173`. Local development uses SQLite for account JSON and `data/private-videos/` for owner-scoped videos while exposing the same authenticated API as production.
 
-## Connect JSONBin
+## Netlify configuration
 
-The website can sync accounts, matches, goals, training plans, and movement-analysis reports to a private JSONBin while retaining a SQLite backup in `data/tennis.db`. If JSONBin is temporarily unavailable, the local server can read the backup and retry syncing when data changes.
+Set these environment variables for all production deploys:
 
-1. Create a private JSONBin and initialise it with `{}`.
-2. Create an Access Key limited to `Bins Read` and `Bins Update`.
-3. Copy `.env.example` to `.env`, then enter `JSONBIN_BIN_ID` and `JSONBIN_ACCESS_KEY`.
-4. Restart `server.py`. After signing in, the storage indicator should show **JSONBin synced**.
+- `ACEPOINT_SESSION_SECRET`: a new random value of at least 24 characters. Do not expose it in browser code.
+- `JSONBIN_BIN_ID` and `JSONBIN_ACCESS_KEY`: temporarily retained only to migrate existing accounts on first login.
 
-The key is read only by the backend and is never included in browser code or API responses. Do not commit or share `.env`.
+Netlify automatically supplies the site identity needed by `@netlify/blobs` inside Functions. Run `npm run build` for the deploy output.
 
-Movement Analysis runs in the browser with MediaPipe Tasks Vision and WebAssembly. A Web Worker performs pose inference away from the interface thread while the page samples decoded video frames, follows the selected player, and reviews multiple distinct movement windows. Each finding is attached to its own timestamp, replay range, annotated evidence frame, and confidence. It does **not** detect the ball or infer contact.
+## Verification
 
-Reports sync with the account record. Original videos are stored in IndexedDB on the device that performed the analysis, because JSONBin is not suitable for large video binaries. Opening the same report on another device shows its saved findings and evidence frames, but not the original source video.
+```bash
+npm test
+npm run build
+python3 -m py_compile server.py
+```
 
-## Netlify deployment
-
-Netlify publishes the frontend through `netlify.toml` and provides `/api/accounts` and `/api/storage-status` through Netlify Functions. Add these variables in **Project configuration → Environment variables**:
-
-- `JSONBIN_BIN_ID`
-- `JSONBIN_ACCESS_KEY` (recommended) or `JSONBIN_MASTER_KEY`
-
-Redeploy after saving the variables. Accounts, matches, goals, calendar entries, training plans, and analysis reports will sync directly to JSONBin. Video analysis needs no Python deployment or proxy: Netlify serves `client-analyzer.js` and `pose-worker.js`, and the pose model runs on the user’s device.
+With the local server on port 4189, `node tests/integration-local.mjs` verifies that a second session for the same account can replay the saved video while another account receives `404` for playback tickets and deletion.

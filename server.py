@@ -2,13 +2,18 @@
 """Serve the tennis app with JSONBin cloud storage and SQLite backup."""
 
 import json
+import base64
+import hashlib
+import hmac
 import mimetypes
 import os
+import re
 import sqlite3
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -37,6 +42,10 @@ JSONBIN_MASTER_KEY = os.environ.get("JSONBIN_MASTER_KEY", "").strip()
 JSONBIN_BASE_URL = "https://api.jsonbin.io/v3/b"
 STORAGE_LOCK = threading.RLock()
 STORAGE_STATUS = {"configured": bool(JSONBIN_BIN_ID and (JSONBIN_ACCESS_KEY or JSONBIN_MASTER_KEY)), "connected": False, "backend": "sqlite", "message": "JSONBin is not configured"}
+VIDEO_DIR = DATA_DIR / "private-videos"
+MAX_VIDEO_BYTES = 120 * 1024 * 1024
+CHUNK_BYTES = 4 * 1024 * 1024
+SESSION_SECRET = (os.environ.get("ACEPOINT_SESSION_SECRET") or JSONBIN_ACCESS_KEY or JSONBIN_MASTER_KEY or "acepoint-local-development-secret-v2").encode("utf-8")
 
 
 class RemoteStorageError(Exception):
@@ -143,6 +152,48 @@ def write_accounts(accounts):
             raise
 
 
+def account_id(email):
+    return hashlib.sha256(email.strip().lower().encode("utf-8")).hexdigest()
+
+
+def normalize_account(source, email):
+    return {"schemaVersion": 2, "id": account_id(email), "name": str(source.get("name") or "Player")[:100], "email": email, "passwordHash": str(source.get("passwordHash") or ""), "sessionVersion": int(source.get("sessionVersion") or 1), "matches": source.get("matches") if isinstance(source.get("matches"), list) else [], "goals": source.get("goals") if isinstance(source.get("goals"), list) else [], "scheduledMatches": source.get("scheduledMatches") if isinstance(source.get("scheduledMatches"), list) else [], "exercises": source.get("exercises") if isinstance(source.get("exercises"), list) else [], "analyses": source.get("analyses") if isinstance(source.get("analyses"), list) else [], "createdAt": source.get("createdAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+
+
+def public_account(account):
+    return {key: value for key, value in account.items() if key not in {"id", "passwordHash", "sessionVersion"}}
+
+
+def encode_token(payload, purpose="session"):
+    raw = base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode().rstrip("=")
+    signature = base64.urlsafe_b64encode(hmac.new(SESSION_SECRET, (purpose + "." + raw).encode(), hashlib.sha256).digest()).decode().rstrip("=")
+    return raw + "." + signature
+
+
+def decode_token(token, purpose="session"):
+    try:
+        raw, supplied = token.split(".", 1)
+        expected = base64.urlsafe_b64encode(hmac.new(SESSION_SECRET, (purpose + "." + raw).encode(), hashlib.sha256).digest()).decode().rstrip("=")
+        if not hmac.compare_digest(supplied, expected):
+            raise ValueError
+        payload = json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+        if payload.get("exp", 0) <= int(time.time()):
+            raise ValueError
+        return payload
+    except Exception as error:
+        raise ValueError("Session expired.") from error
+
+
+def save_account(account):
+    accounts = read_local_accounts()
+    accounts[account["email"]] = account
+    write_local_accounts(accounts)
+
+
+def analysis_owned(account, analysis_id):
+    return any(str(item.get("id")) == analysis_id for item in account.get("analyses", []))
+
+
 class TennisHandler(BaseHTTPRequestHandler):
     server_version = "AcePoint/1.0"
 
@@ -155,18 +206,59 @@ class TennisHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def read_json(self, limit=4 * 1024 * 1024):
+        length = int(self.headers.get("Content-Length", "0"))
+        if length < 1 or length > limit:
+            raise ValueError("Request data is too large or empty.")
+        return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def authorized_account(self):
+        header = self.headers.get("Authorization", "")
+        claims = decode_token(header[7:] if header.startswith("Bearer ") else "")
+        account = read_local_accounts().get(claims.get("email"))
+        if not account or account.get("id") != claims.get("sub") or int(account.get("sessionVersion", 1)) != int(claims.get("sv", 1)):
+            raise ValueError("Session expired.")
+        return account
+
+    def video_route(self, path):
+        match = re.fullmatch(r"/api/videos/([A-Za-z0-9_-]{8,80})(?:/(chunk|complete|ticket))?", path)
+        return match.groups() if match else None
+
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path); path = parsed.path
         if path == "/api/storage-status":
-            self.send_json(200, {
-                "configured": STORAGE_STATUS["configured"],
-                "connected": STORAGE_STATUS["connected"],
-                "backend": STORAGE_STATUS["backend"],
-                "message": STORAGE_STATUS["message"],
-            })
+            self.send_json(200, {"configured": True, "connected": True, "backend": "local-private-storage", "message": "Private local account and video storage available"})
             return
-        if path == "/api/accounts":
-            self.send_json(200, read_accounts())
+        if path == "/api/account":
+            try:
+                account = self.authorized_account(); self.send_json(200, {"account": public_account(account), "storage": "local-private-storage"})
+            except ValueError as error:
+                self.send_json(401, {"error": str(error)})
+            return
+        route = self.video_route(path)
+        if route and not route[1]:
+            analysis_id = route[0]
+            try:
+                ticket = parse_qs(parsed.query).get("ticket", [""])[0]
+                if ticket:
+                    claims = decode_token(ticket, "video")
+                    if claims.get("aid") != analysis_id: raise ValueError("Video authorization expired.")
+                    account = next((item for item in read_local_accounts().values() if item.get("id") == claims.get("sub")), None)
+                else: account = self.authorized_account()
+                if not account or not analysis_owned(account, analysis_id): raise ValueError("Video analysis not found.")
+                video = VIDEO_DIR / account["id"] / analysis_id / "video.bin"; manifest_path = video.with_name("manifest.json")
+                if not video.is_file() or not manifest_path.is_file(): raise FileNotFoundError
+                manifest = json.loads(manifest_path.read_text()); size = video.stat().st_size; start, end = 0, min(size - 1, CHUNK_BYTES - 1); partial = size > CHUNK_BYTES
+                header = self.headers.get("Range", "")
+                if header.startswith("bytes="):
+                    left, right = header[6:].split("-", 1); start = int(left or 0); end = min(int(right) if right else size - 1, size - 1, start + CHUNK_BYTES - 1); partial = True
+                if start < 0 or start > end or start >= size: raise ValueError("Invalid range.")
+                length = end - start + 1; self.send_response(206 if partial else 200); self.send_header("Content-Type", manifest["contentType"]); self.send_header("Content-Length", str(length)); self.send_header("Accept-Ranges", "bytes"); self.send_header("Cache-Control", "private, no-store")
+                if partial: self.send_header("Content-Range", "bytes %d-%d/%d" % (start, end, size))
+                self.end_headers()
+                with video.open("rb") as source: source.seek(start); self.wfile.write(source.read(length))
+            except FileNotFoundError: self.send_json(404, {"error": "The source video has not been synced."})
+            except ValueError as error: self.send_json(401 if "authorization" in str(error).lower() or "Session" in str(error) else 400, {"error": str(error)})
             return
         self.serve_file(path, include_body=True)
 
@@ -174,24 +266,70 @@ class TennisHandler(BaseHTTPRequestHandler):
         self.serve_file(urlparse(self.path).path, include_body=False)
 
     def do_PUT(self):
-        if urlparse(self.path).path != "/api/accounts":
+        if urlparse(self.path).path != "/api/account":
             self.send_json(404, {"error": "API endpoint not found"})
             return
         try:
-            length = int(self.headers.get("Content-Length", "0"))
-            if length > 5 * 1024 * 1024:
-                self.send_json(413, {"error": "The account data is too large"})
-                return
-            payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            backend = write_accounts(payload)
-            self.send_json(200, {"saved": True, "storage": backend})
-        except RemoteStorageError as error:
-            self.send_json(502, {
-                "error": "The data was saved to the local backup, but JSONBin sync failed. %s" % error,
-                "savedLocally": True,
-            })
+            stored = self.authorized_account(); incoming = self.read_json(); incoming.update({"email": stored["email"], "passwordHash": stored["passwordHash"], "sessionVersion": stored.get("sessionVersion", 1), "createdAt": stored.get("createdAt")}); account = normalize_account(incoming, stored["email"]); save_account(account); self.send_json(200, {"saved": True, "account": public_account(account), "storage": "local-private-storage"})
         except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as error:
-            self.send_json(400, {"error": str(error)})
+            self.send_json(401 if "Session" in str(error) else 400, {"error": str(error)})
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        if path == "/api/auth":
+            try:
+                body = self.read_json(); action = str(body.get("action") or "login"); email = str(body.get("email") or "").strip().lower(); password_hash = str(body.get("passwordHash") or "")
+                if not re.fullmatch(r"\S+@\S+\.\S+", email) or not re.fullmatch(r"[0-9a-f]{64}", password_hash): raise ValueError("Enter a valid email and password.")
+                accounts = read_local_accounts(); source = accounts.get(email)
+                if not source and STORAGE_STATUS["configured"]:
+                    source = read_accounts().get(email)
+                if action == "signup":
+                    if source: self.send_json(409, {"error": "An account already exists for this email. Please sign in."}); return
+                    account = normalize_account({"name": body.get("name"), "email": email, "passwordHash": password_hash}, email); save_account(account)
+                else:
+                    if not source: self.send_json(401, {"error": "No account was found for this email." if action == "reset" else "Incorrect email or password. Create an account first if you are new."}); return
+                    account = normalize_account(source, email)
+                    if action == "reset": account["passwordHash"] = password_hash; account["sessionVersion"] += 1; save_account(account); self.send_json(200, {"updated": True}); return
+                    if account["passwordHash"] != password_hash: self.send_json(401, {"error": "Incorrect email or password. Create an account first if you are new."}); return
+                save_account(account); now = int(time.time()); token = encode_token({"sub": account["id"], "email": email, "sv": account["sessionVersion"], "iat": now, "exp": now + 30 * 86400}); self.send_json(201 if action == "signup" else 200, {"token": token, "account": public_account(account), "storage": "local-private-storage"})
+            except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as error: self.send_json(400, {"error": str(error)})
+            return
+        route = self.video_route(path)
+        if not route: self.send_json(404, {"error": "API endpoint not found"}); return
+        analysis_id, action = route
+        try:
+            account = self.authorized_account()
+            if not analysis_owned(account, analysis_id): self.send_json(404, {"error": "Video analysis not found."}); return
+            folder = VIDEO_DIR / account["id"] / analysis_id; folder.mkdir(parents=True, exist_ok=True)
+            if action == "ticket":
+                now = int(time.time()); ticket = encode_token({"sub": account["id"], "aid": analysis_id, "exp": now + 600}, "video"); self.send_json(200, {"videoUrl": "/api/videos/%s?ticket=%s" % (analysis_id, ticket), "expiresIn": 600}); return
+            if action == "chunk":
+                index = int(self.headers.get("X-Chunk-Index", "-1")); total = int(self.headers.get("X-Total-Chunks", "0")); size = int(self.headers.get("X-File-Size", "0")); length = int(self.headers.get("Content-Length", "0"))
+                if index < 0 or total < 1 or size < 1 or size > MAX_VIDEO_BYTES or length < 1 or length > CHUNK_BYTES: raise ValueError("Invalid video chunk metadata.")
+                (folder / ("chunk-%04d" % index)).write_bytes(self.rfile.read(length)); self.send_json(200, {"uploaded": index + 1, "totalChunks": total}); return
+            if action == "complete":
+                body = self.read_json(); total = int(body["totalChunks"]); size = int(body["fileSize"]); chunks = [folder / ("chunk-%04d" % index) for index in range(total)]
+                if size < 1 or size > MAX_VIDEO_BYTES or not all(item.is_file() for item in chunks): raise ValueError("One or more video parts are missing.")
+                target = folder / "video.bin"
+                with target.open("wb") as output:
+                    for chunk in chunks: output.write(chunk.read_bytes()); chunk.unlink()
+                if target.stat().st_size != size: target.unlink(); raise ValueError("The uploaded video size did not match.")
+                (folder / "manifest.json").write_text(json.dumps({"contentType": str(body.get("contentType") or "application/octet-stream"), "fileName": str(body.get("fileName") or "match-video"), "fileSize": size})); self.send_json(201, {"saved": True, "videoUrl": "/api/videos/" + analysis_id}); return
+            self.send_json(405, {"error": "This request method is not supported."})
+        except (ValueError, json.JSONDecodeError, UnicodeDecodeError, KeyError) as error: self.send_json(401 if "Session" in str(error) else 400, {"error": str(error)})
+
+    def do_DELETE(self):
+        route = self.video_route(urlparse(self.path).path)
+        if not route or route[1]: self.send_json(404, {"error": "API endpoint not found"}); return
+        try:
+            account = self.authorized_account(); analysis_id = route[0]
+            if not analysis_owned(account, analysis_id): self.send_json(404, {"error": "Video analysis not found."}); return
+            folder = VIDEO_DIR / account["id"] / analysis_id
+            if folder.is_dir():
+                for item in folder.iterdir(): item.unlink()
+                folder.rmdir()
+            self.send_json(200, {"deleted": True})
+        except ValueError as error: self.send_json(401, {"error": str(error)})
 
     def serve_file(self, request_path, include_body):
         relative = unquote(request_path).lstrip("/") or "index.html"

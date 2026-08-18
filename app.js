@@ -8,10 +8,12 @@ const toast = document.querySelector('#toast');
 const views = document.querySelectorAll('.view');
 const navItems = document.querySelectorAll('.nav-item');
 const sidebar = document.querySelector('#sidebar');
-const LEGACY_STORAGE_KEY = 'tennis-progress-accounts-v1';
+const AUTH_TOKEN_KEY = 'acepoint-session-v2';
+const AUTH_EMAIL_KEY = 'acepoint-session-email-v2';
 let accountsCache = {};
 let saveQueue = Promise.resolve();
-let currentEmail = sessionStorage.getItem('tennis-current-user') || '';
+let authToken = sessionStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem(AUTH_TOKEN_KEY) || '';
+let currentEmail = sessionStorage.getItem(AUTH_EMAIL_KEY) || localStorage.getItem(AUTH_EMAIL_KEY) || '';
 let calendarCursor = new Date();
 let currentDetailMatchId = '';
 let currentDayContext = '';
@@ -27,7 +29,7 @@ let renamingAnalysisId = '';
 let clientAnalyzerPromise = null;
 let pendingVideoSource = null;
 const analysisVideoUrls = new Map();
-let storageState = {configured:false, connected:false, backend:'sqlite'};
+let storageState = {configured:true, connected:false, backend:'netlify-blobs'};
 const titles = {
   overview: ['Today', 'Home'], 'new-match': ['Match Journal', 'Log a Match'],
   analysis: ['Movement Lab', 'Movement Analysis'],
@@ -50,15 +52,21 @@ function normalizeAccountValues(account) {
 function accounts() {
   return accountsCache;
 }
+function authHeaders(extra={}) { return authToken ? {...extra,Authorization:`Bearer ${authToken}`} : extra; }
+function rememberSession(token,email,persistent=true) { clearSession();authToken=token;currentEmail=email;const storage=persistent?localStorage:sessionStorage;storage.setItem(AUTH_TOKEN_KEY,token);storage.setItem(AUTH_EMAIL_KEY,email); }
+function clearSession() { authToken='';currentEmail='';accountsCache={};for(const storage of [localStorage,sessionStorage]){storage.removeItem(AUTH_TOKEN_KEY);storage.removeItem(AUTH_EMAIL_KEY);}sessionStorage.removeItem('tennis-current-user'); }
+async function authRequest(payload) {
+  const response=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),result=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(result.error||'Authentication could not be completed.');
+  return result;
+}
 function renderStorageStatus(status = storageState) {
   storageState = {...storageState, ...status};
   const element = document.querySelector('#storageStatus');
   if (!element) return;
   element.classList.toggle('is-connected', Boolean(storageState.connected));
   element.classList.toggle('is-backup', Boolean(storageState.configured && !storageState.connected));
-  const label = storageState.connected
-    ? 'JSONBin synced'
-    : storageState.configured ? (storageState.backend === 'sqlite-backup' ? 'Cloud offline · Local backup available' : 'Cloud connection failed · Check settings') : 'Waiting for JSONBin';
+  const label = storageState.connected ? 'Secure cloud synced' : 'Cloud sync unavailable';
   element.querySelector('.storage-status-copy').textContent = label;
   element.title = storageState.message || label;
 }
@@ -96,17 +104,30 @@ async function attachAnalysisVideo(analysis){
   try{
     let url=analysisVideoUrls.get(analysis.id);
     if(!url){const analyzer=await loadClientAnalyzer(),blob=await analyzer.loadAnalysisVideo(analysis.id);if(blob){url=URL.createObjectURL(blob);analysisVideoUrls.set(analysis.id,url);}}
+    if(!url&&analysis.cloudVideo){const response=await fetch(`/api/videos/${encodeURIComponent(analysis.id)}/ticket`,{method:'POST',headers:authHeaders()}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'The synced video is unavailable.');url=result.videoUrl;}
     if(url&&video.isConnected)video.src=url;
-  }catch{if(video.isConnected)video.insertAdjacentHTML('afterend','<small class="video-local-note">The saved report is available, but its original video is not stored on this device.</small>');}
+  }catch{if(video.isConnected&&!video.parentElement.querySelector('.video-local-note'))video.insertAdjacentHTML('afterend','<small class="video-local-note">The report is available, but the private source video could not be loaded.</small>');}
+}
+async function uploadAnalysisVideo(analysis,file,onProgress=()=>{}) {
+  const chunkBytes=4*1024*1024,totalChunks=Math.ceil(file.size/chunkBytes),contentType=file.type||'application/octet-stream';
+  for(let index=0;index<totalChunks;index++){
+    const body=file.slice(index*chunkBytes,Math.min(file.size,(index+1)*chunkBytes));let response;
+    for(let attempt=0;attempt<3;attempt++){response=await fetch(`/api/videos/${encodeURIComponent(analysis.id)}/chunk`,{method:'POST',headers:authHeaders({'Content-Type':'application/octet-stream','X-Chunk-Index':String(index),'X-Total-Chunks':String(totalChunks),'X-File-Size':String(file.size),'X-Video-Type':contentType}),body});if(response.ok)break;if(response.status<500)break;}
+    if(!response?.ok){const result=await response?.json().catch(()=>({}));throw new Error(result?.error||`Could not upload video part ${index+1}.`);}
+    onProgress((index+1)/totalChunks,index+1,totalChunks);
+  }
+  const response=await fetch(`/api/videos/${encodeURIComponent(analysis.id)}/complete`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({totalChunks,fileSize:file.size,contentType,fileName:file.name})}),result=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(result.error||'Could not finish syncing the video.');
+  return result;
 }
 function saveAccounts(data) {
   accountsCache = data;
-  const snapshot = JSON.stringify(data);
+  const snapshot = JSON.stringify(data[currentEmail]||{});
   saveQueue = saveQueue.then(async () => {
-    const response = await fetch('/api/accounts', {method:'PUT', headers:{'Content-Type':'application/json'}, body:snapshot});
+    const response = await fetch('/api/account', {method:'PUT', headers:authHeaders({'Content-Type':'application/json'}), body:snapshot});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Could not save to the database');
-    renderStorageStatus({configured:result.storage === 'jsonbin' || storageState.configured, connected:result.storage === 'jsonbin', backend:result.storage, message:result.storage === 'jsonbin' ? 'Synced to JSONBin' : storageState.message});
+    renderStorageStatus({configured:true,connected:true,backend:'netlify-blobs',message:'Your private account data is synced.'});
   }).catch(error => {
     refreshStorageStatus();
     showToast(error.message || 'Your data could not be saved. Check the website server.');
@@ -118,7 +139,7 @@ function updateAccount(mutator) {
   const data = accounts();
   if (!data[currentEmail]) return;
   mutator(data[currentEmail]);
-  saveAccounts(data);
+  return saveAccounts(data);
 }
 function prepareAccount() {
   const data = accounts(); const account = data[currentEmail];
@@ -129,7 +150,7 @@ function prepareAccount() {
   if (!account.exercises) account.exercises = [];
   if (!account.analyses) account.analyses = [];
   normalizeAccountValues(account);
-  saveAccounts(data); return account;
+  return account;
 }
 async function hashPassword(value) {
   const bytes = new TextEncoder().encode(value);
@@ -189,7 +210,6 @@ function openApp() {
   const account = prepareAccount(); if (!account) return;
   if (loginModal?.open) loginModal.close();
   loginPage.hidden = true; appShell.hidden = false;
-  sessionStorage.setItem('tennis-current-user', currentEmail);
   const initial = account.name.trim().charAt(0).toUpperCase() || 'Y';
   document.querySelector('#userAvatar').textContent = initial;
   document.querySelector('#userName').textContent = account.name;
@@ -408,14 +428,14 @@ function collectValidSets(){
   let won=0,lost=0;sets.forEach(set=>Number(set.player)>Number(set.opponent)?won++:lost++);if(won<2&&lost<2){showScoreError('In a best-of-three match, one player must win at least two sets.');return null;}return{sets,won,lost};
 }
 
-loginForm.addEventListener('submit',async event=>{event.preventDefault();setError('#loginError');const email=document.querySelector('#email').value.trim().toLowerCase(),account=accounts()[email];if(!account||account.passwordHash!==await hashPassword(document.querySelector('#password').value)){setError('#loginError','Incorrect email or password. Create an account first if you are new.');return;}currentEmail=email;openApp();showToast('Signed in');});
+loginForm.addEventListener('submit',async event=>{event.preventDefault();setError('#loginError');const email=document.querySelector('#email').value.trim().toLowerCase(),button=event.currentTarget.querySelector('[type="submit"]');button.disabled=true;try{const result=await authRequest({action:'login',email,passwordHash:await hashPassword(document.querySelector('#password').value)});rememberSession(result.token,email,document.querySelector('#keepSignedIn').checked);accountsCache={[email]:result.account};openApp();showToast('Signed in');}catch(error){setError('#loginError',error.message);}finally{button.disabled=false;}});
 document.querySelectorAll('[data-open-login]').forEach(button=>button.addEventListener('click',()=>{setError('#loginError');loginModal.showModal();setTimeout(()=>document.querySelector('#email').focus(),50);}));
 document.querySelector('#loginClose').addEventListener('click',()=>loginModal.close());loginModal.addEventListener('click',event=>{if(event.target===loginModal)loginModal.close();});
 document.querySelectorAll('[data-open-signup]').forEach(button=>button.addEventListener('click',()=>{setError('#signupError');signupModal.showModal();}));
 document.querySelector('#signupButton').addEventListener('click',()=>{setError('#signupError');loginModal.close();signupModal.showModal();});document.querySelector('#signupClose').addEventListener('click',()=>signupModal.close());
-document.querySelector('#signupForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,name=document.querySelector('#signupName').value.trim(),email=document.querySelector('#signupEmail').value.trim().toLowerCase(),password=document.querySelector('#signupPassword').value,confirmPassword=document.querySelector('#signupConfirm').value,data=accounts();if(password!==confirmPassword){setError('#signupError','The passwords do not match.');return;}if(data[email]){setError('#signupError','An account already exists for this email. Please sign in.');return;}data[email]={name,email,passwordHash:await hashPassword(password),matches:[],goals:[],scheduledMatches:[],exercises:[],analyses:[],createdAt:new Date().toISOString()};saveAccounts(data);currentEmail=email;signupModal.close();form.reset();openApp();showToast('Account created');});
+document.querySelector('#signupForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,name=document.querySelector('#signupName').value.trim(),email=document.querySelector('#signupEmail').value.trim().toLowerCase(),password=document.querySelector('#signupPassword').value,confirmPassword=document.querySelector('#signupConfirm').value,button=form.querySelector('[type="submit"]');setError('#signupError');if(password!==confirmPassword){setError('#signupError','The passwords do not match.');return;}button.disabled=true;try{const result=await authRequest({action:'signup',name,email,passwordHash:await hashPassword(password)});rememberSession(result.token,email);accountsCache={[email]:result.account};signupModal.close();form.reset();openApp();showToast('Account created');}catch(error){setError('#signupError',error.message);}finally{button.disabled=false;}});
 document.querySelector('#togglePassword').addEventListener('click',event=>{const input=document.querySelector('#password');input.type=input.type==='password'?'text':'password';event.currentTarget.textContent=input.type==='password'?'Show':'Hide';});document.querySelector('#forgotOpen').addEventListener('click',()=>{loginModal.close();forgotModal.showModal();});document.querySelector('#forgotForm .modal-close').addEventListener('click',()=>forgotModal.close());
-document.querySelector('#forgotForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,email=document.querySelector('#resetEmail').value.trim().toLowerCase(),data=accounts();if(!data[email]){setError('#resetError','No account was found for this email.');return;}data[email].passwordHash=await hashPassword(document.querySelector('#resetPassword').value);saveAccounts(data);forgotModal.close();form.reset();document.querySelector('#email').value=email;showToast('Password updated');});
+document.querySelector('#forgotForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget,email=document.querySelector('#resetEmail').value.trim().toLowerCase(),button=form.querySelector('[type="submit"]');setError('#resetError');button.disabled=true;try{await authRequest({action:'reset',email,passwordHash:await hashPassword(document.querySelector('#resetPassword').value)});forgotModal.close();form.reset();document.querySelector('#email').value=email;showToast('Password updated');}catch(error){setError('#resetError',error.message);}finally{button.disabled=false;}});
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',event=>{event.preventDefault();showView(button.dataset.view);}));document.querySelector('#menuButton').addEventListener('click',()=>sidebar.classList.add('open'));document.querySelector('#sidebarClose').addEventListener('click',()=>sidebar.classList.remove('open'));
 ['#recentMatches','#allMatches'].forEach(selector=>document.querySelector(selector).addEventListener('click',event=>{const card=event.target.closest('[data-match-id]');if(card)openMatchDetail(card.dataset.matchId);}));
 document.querySelector('#matchDetailClose').addEventListener('click',()=>document.querySelector('#matchDetailModal').close());document.querySelector('#editMatchButton').addEventListener('click',editCurrentMatch);document.querySelector('#deleteMatchButton').addEventListener('click',()=>{const id=currentDetailMatchId;openConfirm('Delete this match?','The score, reflection, and training suggestions generated from it will be permanently removed.',()=>{updateAccount(account=>{account.matches=account.matches.filter(match=>String(match.id)!==id);account.exercises=account.exercises.filter(item=>String(item.generatedFrom)!==id);});document.querySelector('#matchDetailModal').close();renderData();renderCalendar();renderExercises();if(currentDayContext)openCalendarDay(currentDayContext);showToast('Match deleted');});});
@@ -440,10 +460,13 @@ async function analyzeSelectedPlayer(candidate){
   try{
     const analyzer=await loadClientAnalyzer();
     const result=await analyzer.analyzePlayer(pendingVideoSource,candidate,(percent,detail)=>setAnalysisProgress(percent,detail,'Analyzing movement across the video'));
+    result.videoStorage='local-pending';result.cloudVideo=false;result.videoFileName=pendingVideoSource.file.name;
     await analyzer.saveAnalysisVideo(result.id,pendingVideoSource.file);
     analysisVideoUrls.set(result.id,pendingVideoSource.url);
-    updateAccount(account=>{account.analyses=account.analyses||[];account.analyses.unshift(result);});
-    renderAnalysis(result);renderAnalysisHistory();document.querySelector('#playerSelection').hidden=true;button.hidden=false;setAnalysisProgress(100,'Report and original video saved on this device','Analysis complete');showToast('Multi-window movement review complete');
+    await updateAccount(account=>{account.analyses=account.analyses||[];account.analyses.unshift(result);});
+    renderAnalysis(result);renderAnalysisHistory();document.querySelector('#playerSelection').hidden=true;button.hidden=false;
+    try{await uploadAnalysisVideo(result,pendingVideoSource.file,(ratio,part,total)=>setAnalysisProgress(88+ratio*11,`Securely syncing video part ${part} of ${total}`,'Analysis complete · syncing across devices'));result.videoStorage='cloud';result.cloudVideo=true;result.videoSyncedAt=new Date().toISOString();await updateAccount(account=>{const saved=account.analyses.find(item=>item.id===result.id);if(saved)Object.assign(saved,{videoStorage:result.videoStorage,cloudVideo:true,videoSyncedAt:result.videoSyncedAt,videoFileName:result.videoFileName});});setAnalysisProgress(100,'Report and private video synced across your devices','Analysis complete');showToast('Analysis and video synced securely');}
+    catch(syncError){setAnalysisProgress(100,'Report synced · video remains safely stored on this device','Analysis complete');setError('#analysisError',`Your report is saved, but the video could not sync yet: ${syncError.message}`);showToast('Report saved; video sync needs another try');}
   }catch(error){setError('#analysisError',error.message||'The in-browser movement analysis could not be completed. Please try again.');}
   finally{loading.hidden=true;button.disabled=false;}
 }
@@ -477,29 +500,25 @@ function closeCoachingVideo(){document.querySelector('#coachingVideoModal').clos
 document.querySelector('#coachingModalClose').addEventListener('click',closeCoachingVideo);document.querySelector('#coachingVideoModal').addEventListener('cancel',event=>{event.preventDefault();closeCoachingVideo();});document.querySelector('#coachingVideoModal').addEventListener('click',event=>{if(event.target===event.currentTarget)closeCoachingVideo();});
 function closeAnalysisName(){renamingAnalysisId='';document.querySelector('#analysisNameModal').close();}
 document.querySelector('#analysisNameClose').addEventListener('click',closeAnalysisName);document.querySelector('#analysisNameModal').addEventListener('cancel',()=>{renamingAnalysisId='';});document.querySelector('#analysisNameForm').addEventListener('submit',event=>{event.preventDefault();const name=document.querySelector('#analysisNameInput').value.trim();if(!name||!renamingAnalysisId)return;updateAccount(account=>{const analysis=account.analyses.find(item=>item.id===renamingAnalysisId);if(analysis)analysis.name=name;});const renamedId=renamingAnalysisId;closeAnalysisName();renderAnalysisHistory();if(currentAnalysisId===renamedId){const analysis=currentAccount()?.analyses?.find(item=>item.id===renamedId);if(analysis)renderAnalysis(analysis);}showToast('Analysis name saved');});
-document.querySelector('#analysisHistory').addEventListener('click',event=>{const open=event.target.closest('[data-analysis-open]');if(open){const analysis=currentAccount()?.analyses?.find(item=>item.id===open.dataset.analysisOpen);if(analysis){renderAnalysis(analysis);document.querySelector('#analysisResult').scrollIntoView({behavior:'smooth',block:'start'});}return;}const rename=event.target.closest('[data-analysis-rename]');if(rename){const analysis=currentAccount()?.analyses?.find(item=>item.id===rename.dataset.analysisRename);if(!analysis)return;renamingAnalysisId=analysis.id;document.querySelector('#analysisNameInput').value=analysis.name||analysisDateLabel(analysis);document.querySelector('#analysisNameModal').showModal();document.querySelector('#analysisNameInput').select();return;}const remove=event.target.closest('[data-analysis-delete]');if(remove){const id=remove.dataset.analysisDelete;openConfirm('Delete this video analysis?','The report, movement frames, and locally stored video will be permanently removed from your analysis history.',async()=>{updateAccount(account=>account.analyses=account.analyses.filter(item=>item.id!==id));try{const analyzer=await loadClientAnalyzer();await analyzer.deleteAnalysisVideo(id);}catch{}const url=analysisVideoUrls.get(id);if(url){URL.revokeObjectURL(url);analysisVideoUrls.delete(id);}if(currentAnalysisId===id){currentAnalysisId='';activeMistakeSegments=[];document.querySelector('.motion-layout').classList.remove('has-report');document.querySelector('#analysisResult').innerHTML='<div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Upload a video to create a new movement analysis.</p></div>';}renderAnalysisHistory();showToast('Analysis deleted');});}});
-document.querySelector('#logoutButton').addEventListener('click',()=>{currentEmail='';sessionStorage.removeItem('tennis-current-user');appShell.hidden=true;loginPage.hidden=false;loginForm.reset();window.scrollTo({top:0,behavior:'auto'});});
+document.querySelector('#analysisHistory').addEventListener('click',event=>{const open=event.target.closest('[data-analysis-open]');if(open){const analysis=currentAccount()?.analyses?.find(item=>item.id===open.dataset.analysisOpen);if(analysis){renderAnalysis(analysis);document.querySelector('#analysisResult').scrollIntoView({behavior:'smooth',block:'start'});}return;}const rename=event.target.closest('[data-analysis-rename]');if(rename){const analysis=currentAccount()?.analyses?.find(item=>item.id===rename.dataset.analysisRename);if(!analysis)return;renamingAnalysisId=analysis.id;document.querySelector('#analysisNameInput').value=analysis.name||analysisDateLabel(analysis);document.querySelector('#analysisNameModal').showModal();document.querySelector('#analysisNameInput').select();return;}const remove=event.target.closest('[data-analysis-delete]');if(remove){const id=remove.dataset.analysisDelete;openConfirm('Delete this video analysis?','The private video, report, and movement frames will be permanently removed from every device.',async()=>{try{const response=await fetch(`/api/videos/${encodeURIComponent(id)}`,{method:'DELETE',headers:authHeaders()});if(!response.ok&&response.status!==404){const result=await response.json().catch(()=>({}));throw new Error(result.error||'The cloud video could not be deleted.');}await updateAccount(account=>account.analyses=account.analyses.filter(item=>item.id!==id));const analyzer=await loadClientAnalyzer();await analyzer.deleteAnalysisVideo(id);}catch(error){showToast(error.message||'Analysis could not be deleted');return;}const url=analysisVideoUrls.get(id);if(url?.startsWith('blob:'))URL.revokeObjectURL(url);analysisVideoUrls.delete(id);if(currentAnalysisId===id){currentAnalysisId='';activeMistakeSegments=[];document.querySelector('.motion-layout').classList.remove('has-report');document.querySelector('#analysisResult').innerHTML='<div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Upload a video to create a new movement analysis.</p></div>';}renderAnalysisHistory();showToast('Analysis deleted from every device');});}});
+document.querySelector('#logoutButton').addEventListener('click',()=>{clearSession();appShell.hidden=true;loginPage.hidden=false;loginForm.reset();window.scrollTo({top:0,behavior:'auto'});});
 document.querySelectorAll('.tiebreak-check').forEach(input=>input.addEventListener('change',()=>{const row=input.closest('.set-block').querySelector('.tiebreak-inputs');row.hidden=!input.checked;if(!input.checked)row.querySelectorAll('input').forEach(field=>field.value='');}));document.querySelector('#cancelMatchEdit').addEventListener('click',()=>{resetMatchForm();showView('overview');});
 document.querySelector('#matchForm').addEventListener('submit',event=>{event.preventDefault();const valid=collectValidSets();if(!valid)return;const wasEditing=Boolean(editingMatchId);const editId=editingMatchId;const note=document.querySelector('#matchNote').value.trim();const id=editId||String(Date.now());const match={id:Number(id),opponent:document.querySelector('#opponent').value.trim(),date:document.querySelector('#matchDate').value,surface:document.querySelector('#surface').value,sets:valid.sets,matchType:document.querySelector('input[name="matchType"]:checked').value,satisfaction:document.querySelector('input[name="satisfaction"]:checked').value,note,result:valid.won>valid.lost?'Win':'Loss'};let suggestions=0;updateAccount(account=>{if(wasEditing){const index=account.matches.findIndex(item=>String(item.id)===editId);if(index>=0)account.matches[index]=match;}else account.matches.push(match);suggestions=generateExercises(note,match.id,account);});resetMatchForm();renderData();renderCalendar();renderExercises();showView('overview');showToast(wasEditing?'Match updated':suggestions?`Match saved and ${suggestions} training ${suggestions===1?'suggestion was':'suggestions were'} created`:'Match saved');openMatchDetail(match.id);});
 
 document.querySelector('#matchDate').value=localDateValue();document.querySelector('#scheduleDate').min=localDateValue();document.querySelector('#goalDate').min=localDateValue();
 async function initializeApp() {
+  await refreshStorageStatus();
+  if(!authToken||!currentEmail)return;
   try {
-    const response = await fetch('/api/accounts', {cache:'no-store'});
+    const response = await fetch('/api/account', {cache:'no-store',headers:authHeaders()});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Could not read the database');
-    accountsCache = result;
-    let legacy = {};
-    try { legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY)) || {}; } catch {}
-    if (!Object.keys(accountsCache).length && Object.keys(legacy).length) {
-      accountsCache = legacy;
-      await saveAccounts(accountsCache);
-    }
-    localStorage.removeItem(LEGACY_STORAGE_KEY);
-    await refreshStorageStatus();
+    accountsCache = {[currentEmail]:result.account};
+    renderStorageStatus({configured:true,connected:true,backend:'netlify-blobs'});
     if (currentAccount()) openApp();
   } catch (error) {
-    setError('#loginError',error.message || 'Could not connect to the website database. Please check the server.');
+    clearSession();
+    if(!/Session|Authentication/i.test(error.message))setError('#loginError',error.message || 'Could not connect to your private cloud account.');
   }
 }
 initializeApp();

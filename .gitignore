@@ -6,6 +6,8 @@ __pycache__/
 .venv/
 .env
 dist/
+node_modules/
 data/uploads/
 data/analysis/
+data/private-videos/
 data/.mpl/
