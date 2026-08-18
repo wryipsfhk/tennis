@@ -85,7 +85,7 @@ async function refreshAnalysisCapability(force=false) {
   try{
     const analyzer=await loadClientAnalyzer(),support=analyzer.clientAnalysisSupport();
     element.className=`analysis-capability ${support.supported?'is-online':'is-offline'}`;
-    element.querySelector('span').textContent=support.supported?'On-device analysis ready · private cross-device sync enabled · no ball or contact detection':'This browser does not support the WebAssembly features required for video analysis.';
+    element.querySelector('span').textContent=support.supported?'Movement analysis ready':'This browser does not support the features required for video analysis.';
   }catch{
     element.className='analysis-capability is-offline';
     element.querySelector('span').textContent='This browser could not load the on-device pose model. Check your connection and try again.';
