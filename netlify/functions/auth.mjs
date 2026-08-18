@@ -18,4 +18,4 @@ export default async request=>{
   }catch(error){return json(500,{error:error.message||"Authentication could not be completed."});}
 };
 
-export const config={path:"/api/auth"};
+export const config={path:["/api/auth","/acepoint-cloud/session"]};

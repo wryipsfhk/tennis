@@ -221,15 +221,15 @@ class TennisHandler(BaseHTTPRequestHandler):
         return account
 
     def video_route(self, path):
-        match = re.fullmatch(r"/api/videos/([A-Za-z0-9_-]{8,80})(?:/(chunk|complete|ticket))?", path)
+        match = re.fullmatch(r"/(?:api/videos|acepoint-cloud/video)/([A-Za-z0-9_-]{8,80})(?:/(chunk|complete|ticket))?", path)
         return match.groups() if match else None
 
     def do_GET(self):
         parsed = urlparse(self.path); path = parsed.path
-        if path == "/api/storage-status":
+        if path in {"/api/storage-status", "/acepoint-cloud/status"}:
             self.send_json(200, {"configured": True, "connected": True, "backend": "local-private-storage", "message": "Private local account and video storage available"})
             return
-        if path == "/api/account":
+        if path in {"/api/account", "/acepoint-cloud/player"}:
             try:
                 account = self.authorized_account(); self.send_json(200, {"account": public_account(account), "storage": "local-private-storage"})
             except ValueError as error:
@@ -266,7 +266,7 @@ class TennisHandler(BaseHTTPRequestHandler):
         self.serve_file(urlparse(self.path).path, include_body=False)
 
     def do_PUT(self):
-        if urlparse(self.path).path != "/api/account":
+        if urlparse(self.path).path not in {"/api/account", "/acepoint-cloud/player"}:
             self.send_json(404, {"error": "API endpoint not found"})
             return
         try:
@@ -276,7 +276,7 @@ class TennisHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path == "/api/auth":
+        if path in {"/api/auth", "/acepoint-cloud/session"}:
             try:
                 body = self.read_json(); action = str(body.get("action") or "login"); email = str(body.get("email") or "").strip().lower(); password_hash = str(body.get("passwordHash") or "")
                 if not re.fullmatch(r"\S+@\S+\.\S+", email) or not re.fullmatch(r"[0-9a-f]{64}", password_hash): raise ValueError("Enter a valid email and password.")
@@ -302,7 +302,7 @@ class TennisHandler(BaseHTTPRequestHandler):
             if not analysis_owned(account, analysis_id): self.send_json(404, {"error": "Video analysis not found."}); return
             folder = VIDEO_DIR / account["id"] / analysis_id; folder.mkdir(parents=True, exist_ok=True)
             if action == "ticket":
-                now = int(time.time()); ticket = encode_token({"sub": account["id"], "aid": analysis_id, "exp": now + 600}, "video"); self.send_json(200, {"videoUrl": "/api/videos/%s?ticket=%s" % (analysis_id, ticket), "expiresIn": 600}); return
+                now = int(time.time()); ticket = encode_token({"sub": account["id"], "aid": analysis_id, "exp": now + 600}, "video"); self.send_json(200, {"videoUrl": "/acepoint-cloud/video/%s?ticket=%s" % (analysis_id, ticket), "expiresIn": 600}); return
             if action == "chunk":
                 index = int(self.headers.get("X-Chunk-Index", "-1")); total = int(self.headers.get("X-Total-Chunks", "0")); size = int(self.headers.get("X-File-Size", "0")); length = int(self.headers.get("Content-Length", "0"))
                 if index < 0 or total < 1 or size < 1 or size > MAX_VIDEO_BYTES or length < 1 or length > CHUNK_BYTES: raise ValueError("Invalid video chunk metadata.")
@@ -314,7 +314,7 @@ class TennisHandler(BaseHTTPRequestHandler):
                 with target.open("wb") as output:
                     for chunk in chunks: output.write(chunk.read_bytes()); chunk.unlink()
                 if target.stat().st_size != size: target.unlink(); raise ValueError("The uploaded video size did not match.")
-                (folder / "manifest.json").write_text(json.dumps({"contentType": str(body.get("contentType") or "application/octet-stream"), "fileName": str(body.get("fileName") or "match-video"), "fileSize": size})); self.send_json(201, {"saved": True, "videoUrl": "/api/videos/" + analysis_id}); return
+                (folder / "manifest.json").write_text(json.dumps({"contentType": str(body.get("contentType") or "application/octet-stream"), "fileName": str(body.get("fileName") or "match-video"), "fileSize": size})); self.send_json(201, {"saved": True, "videoUrl": "/acepoint-cloud/video/" + analysis_id}); return
             self.send_json(405, {"error": "This request method is not supported."})
         except (ValueError, json.JSONDecodeError, UnicodeDecodeError, KeyError) as error: self.send_json(401 if "Session" in str(error) else 400, {"error": str(error)})
 

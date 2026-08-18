@@ -10,6 +10,7 @@ const navItems = document.querySelectorAll('.nav-item');
 const sidebar = document.querySelector('#sidebar');
 const AUTH_TOKEN_KEY = 'acepoint-session-v2';
 const AUTH_EMAIL_KEY = 'acepoint-session-email-v2';
+const CLOUD_ENDPOINTS = {session:'/acepoint-cloud/session',player:'/acepoint-cloud/player',status:'/acepoint-cloud/status',video:'/acepoint-cloud/video'};
 let accountsCache = {};
 let saveQueue = Promise.resolve();
 let authToken = sessionStorage.getItem(AUTH_TOKEN_KEY) || localStorage.getItem(AUTH_TOKEN_KEY) || '';
@@ -57,7 +58,7 @@ function rememberSession(token,email,persistent=true) { clearSession();authToken
 function clearSession() { authToken='';currentEmail='';accountsCache={};for(const storage of [localStorage,sessionStorage]){storage.removeItem(AUTH_TOKEN_KEY);storage.removeItem(AUTH_EMAIL_KEY);}sessionStorage.removeItem('tennis-current-user'); }
 function safariLoginFallback(payload) {
   return new Promise((resolve,reject)=>{
-    const request=new XMLHttpRequest();request.open('POST',`/api/auth?retry=${Date.now()}`);request.timeout=25000;request.setRequestHeader('Content-Type','application/json');
+    const request=new XMLHttpRequest();request.open('POST',`${CLOUD_ENDPOINTS.session}?retry=${Date.now()}`);request.timeout=25000;request.setRequestHeader('Content-Type','application/json');
     request.onload=()=>{let result={};try{result=JSON.parse(request.responseText||'{}');}catch{}if(request.status>=200&&request.status<300)resolve(result);else reject(new Error(result.error||'Authentication could not be completed.'));};
     request.onerror=()=>reject(new Error('AcePoint could not reach secure sign-in. Check your connection, reload the page, and try again.'));
     request.ontimeout=()=>reject(new Error('Secure sign-in took too long to respond. Please try again.'));
@@ -66,7 +67,7 @@ function safariLoginFallback(payload) {
 }
 async function authRequest(payload) {
   let response;
-  try{response=await fetch('/api/auth',{method:'POST',cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});}
+  try{response=await fetch(CLOUD_ENDPOINTS.session,{method:'POST',cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});}
   catch(error){if(payload.action==='login')return safariLoginFallback(payload);throw new Error('AcePoint could not reach secure account services. Check your connection, reload the page, and try again.');}
   const result=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(result.error||'Authentication could not be completed.');
@@ -84,7 +85,7 @@ function renderStorageStatus(status = storageState) {
 }
 async function refreshStorageStatus() {
   try {
-    const response = await fetch('/api/storage-status', {cache:'no-store'});
+    const response = await fetch(CLOUD_ENDPOINTS.status, {cache:'no-store'});
     if (response.ok) renderStorageStatus(await response.json());
   } catch {}
 }
@@ -116,7 +117,7 @@ async function attachAnalysisVideo(analysis){
   try{
     let url=analysisVideoUrls.get(analysis.id);
     if(!url){const analyzer=await loadClientAnalyzer(),blob=await analyzer.loadAnalysisVideo(analysis.id);if(blob){url=URL.createObjectURL(blob);analysisVideoUrls.set(analysis.id,url);}}
-    if(!url&&analysis.cloudVideo){const response=await fetch(`/api/videos/${encodeURIComponent(analysis.id)}/ticket`,{method:'POST',headers:authHeaders()}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'The synced video is unavailable.');url=result.videoUrl;}
+    if(!url&&analysis.cloudVideo){const response=await fetch(`${CLOUD_ENDPOINTS.video}/${encodeURIComponent(analysis.id)}/ticket`,{method:'POST',headers:authHeaders()}),result=await response.json().catch(()=>({}));if(!response.ok)throw new Error(result.error||'The synced video is unavailable.');url=result.videoUrl;}
     if(url&&video.isConnected)video.src=url;
   }catch{if(video.isConnected&&!video.parentElement.querySelector('.video-local-note'))video.insertAdjacentHTML('afterend','<small class="video-local-note">The report is available, but the private source video could not be loaded.</small>');}
 }
@@ -124,11 +125,11 @@ async function uploadAnalysisVideo(analysis,file,onProgress=()=>{}) {
   const chunkBytes=4*1024*1024,totalChunks=Math.ceil(file.size/chunkBytes),contentType=file.type||'application/octet-stream';
   for(let index=0;index<totalChunks;index++){
     const body=file.slice(index*chunkBytes,Math.min(file.size,(index+1)*chunkBytes));let response;
-    for(let attempt=0;attempt<3;attempt++){response=await fetch(`/api/videos/${encodeURIComponent(analysis.id)}/chunk`,{method:'POST',headers:authHeaders({'Content-Type':'application/octet-stream','X-Chunk-Index':String(index),'X-Total-Chunks':String(totalChunks),'X-File-Size':String(file.size),'X-Video-Type':contentType}),body});if(response.ok)break;if(response.status<500)break;}
+    for(let attempt=0;attempt<3;attempt++){response=await fetch(`${CLOUD_ENDPOINTS.video}/${encodeURIComponent(analysis.id)}/chunk`,{method:'POST',headers:authHeaders({'Content-Type':'application/octet-stream','X-Chunk-Index':String(index),'X-Total-Chunks':String(totalChunks),'X-File-Size':String(file.size),'X-Video-Type':contentType}),body});if(response.ok)break;if(response.status<500)break;}
     if(!response?.ok){const result=await response?.json().catch(()=>({}));throw new Error(result?.error||`Could not upload video part ${index+1}.`);}
     onProgress((index+1)/totalChunks,index+1,totalChunks);
   }
-  const response=await fetch(`/api/videos/${encodeURIComponent(analysis.id)}/complete`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({totalChunks,fileSize:file.size,contentType,fileName:file.name||analysis.videoFileName||analysis.sourceFileName||'match-video'})}),result=await response.json().catch(()=>({}));
+  const response=await fetch(`${CLOUD_ENDPOINTS.video}/${encodeURIComponent(analysis.id)}/complete`,{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({totalChunks,fileSize:file.size,contentType,fileName:file.name||analysis.videoFileName||analysis.sourceFileName||'match-video'})}),result=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(result.error||'Could not finish syncing the video.');
   return result;
 }
@@ -146,7 +147,7 @@ function saveAccounts(data) {
   accountsCache = data;
   const snapshot = JSON.stringify(data[currentEmail]||{});
   saveQueue = saveQueue.then(async () => {
-    const response = await fetch('/api/account', {method:'PUT', headers:authHeaders({'Content-Type':'application/json'}), body:snapshot});
+    const response = await fetch(CLOUD_ENDPOINTS.player, {method:'PUT', headers:authHeaders({'Content-Type':'application/json'}), body:snapshot});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Could not save to the database');
     renderStorageStatus({configured:true,connected:true,backend:'netlify-blobs',message:'Your private account data is synced.'});
@@ -523,7 +524,7 @@ function closeCoachingVideo(){document.querySelector('#coachingVideoModal').clos
 document.querySelector('#coachingModalClose').addEventListener('click',closeCoachingVideo);document.querySelector('#coachingVideoModal').addEventListener('cancel',event=>{event.preventDefault();closeCoachingVideo();});document.querySelector('#coachingVideoModal').addEventListener('click',event=>{if(event.target===event.currentTarget)closeCoachingVideo();});
 function closeAnalysisName(){renamingAnalysisId='';document.querySelector('#analysisNameModal').close();}
 document.querySelector('#analysisNameClose').addEventListener('click',closeAnalysisName);document.querySelector('#analysisNameModal').addEventListener('cancel',()=>{renamingAnalysisId='';});document.querySelector('#analysisNameForm').addEventListener('submit',event=>{event.preventDefault();const name=document.querySelector('#analysisNameInput').value.trim();if(!name||!renamingAnalysisId)return;updateAccount(account=>{const analysis=account.analyses.find(item=>item.id===renamingAnalysisId);if(analysis)analysis.name=name;});const renamedId=renamingAnalysisId;closeAnalysisName();renderAnalysisHistory();if(currentAnalysisId===renamedId){const analysis=currentAccount()?.analyses?.find(item=>item.id===renamedId);if(analysis)renderAnalysis(analysis);}showToast('Analysis name saved');});
-document.querySelector('#analysisHistory').addEventListener('click',event=>{const open=event.target.closest('[data-analysis-open]');if(open){const analysis=currentAccount()?.analyses?.find(item=>item.id===open.dataset.analysisOpen);if(analysis){renderAnalysis(analysis);document.querySelector('#analysisResult').scrollIntoView({behavior:'smooth',block:'start'});}return;}const rename=event.target.closest('[data-analysis-rename]');if(rename){const analysis=currentAccount()?.analyses?.find(item=>item.id===rename.dataset.analysisRename);if(!analysis)return;renamingAnalysisId=analysis.id;document.querySelector('#analysisNameInput').value=analysis.name||analysisDateLabel(analysis);document.querySelector('#analysisNameModal').showModal();document.querySelector('#analysisNameInput').select();return;}const remove=event.target.closest('[data-analysis-delete]');if(remove){const id=remove.dataset.analysisDelete;openConfirm('Delete this video analysis?','The private video, report, and movement frames will be permanently removed from every device.',async()=>{try{const response=await fetch(`/api/videos/${encodeURIComponent(id)}`,{method:'DELETE',headers:authHeaders()});if(!response.ok&&response.status!==404){const result=await response.json().catch(()=>({}));throw new Error(result.error||'The cloud video could not be deleted.');}await updateAccount(account=>account.analyses=account.analyses.filter(item=>item.id!==id));const analyzer=await loadClientAnalyzer();await analyzer.deleteAnalysisVideo(id);}catch(error){showToast(error.message||'Analysis could not be deleted');return;}const url=analysisVideoUrls.get(id);if(url?.startsWith('blob:'))URL.revokeObjectURL(url);analysisVideoUrls.delete(id);if(currentAnalysisId===id){currentAnalysisId='';activeMistakeSegments=[];document.querySelector('.motion-layout').classList.remove('has-report');document.querySelector('#analysisResult').innerHTML='<div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Upload a video to create a new movement analysis.</p></div>';}renderAnalysisHistory();showToast('Analysis deleted from every device');});}});
+document.querySelector('#analysisHistory').addEventListener('click',event=>{const open=event.target.closest('[data-analysis-open]');if(open){const analysis=currentAccount()?.analyses?.find(item=>item.id===open.dataset.analysisOpen);if(analysis){renderAnalysis(analysis);document.querySelector('#analysisResult').scrollIntoView({behavior:'smooth',block:'start'});}return;}const rename=event.target.closest('[data-analysis-rename]');if(rename){const analysis=currentAccount()?.analyses?.find(item=>item.id===rename.dataset.analysisRename);if(!analysis)return;renamingAnalysisId=analysis.id;document.querySelector('#analysisNameInput').value=analysis.name||analysisDateLabel(analysis);document.querySelector('#analysisNameModal').showModal();document.querySelector('#analysisNameInput').select();return;}const remove=event.target.closest('[data-analysis-delete]');if(remove){const id=remove.dataset.analysisDelete;openConfirm('Delete this video analysis?','The private video, report, and movement frames will be permanently removed from every device.',async()=>{try{const response=await fetch(`${CLOUD_ENDPOINTS.video}/${encodeURIComponent(id)}`,{method:'DELETE',headers:authHeaders()});if(!response.ok&&response.status!==404){const result=await response.json().catch(()=>({}));throw new Error(result.error||'The cloud video could not be deleted.');}await updateAccount(account=>account.analyses=account.analyses.filter(item=>item.id!==id));const analyzer=await loadClientAnalyzer();await analyzer.deleteAnalysisVideo(id);}catch(error){showToast(error.message||'Analysis could not be deleted');return;}const url=analysisVideoUrls.get(id);if(url?.startsWith('blob:'))URL.revokeObjectURL(url);analysisVideoUrls.delete(id);if(currentAnalysisId===id){currentAnalysisId='';activeMistakeSegments=[];document.querySelector('.motion-layout').classList.remove('has-report');document.querySelector('#analysisResult').innerHTML='<div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Upload a video to create a new movement analysis.</p></div>';}renderAnalysisHistory();showToast('Analysis deleted from every device');});}});
 document.querySelector('#logoutButton').addEventListener('click',()=>{clearSession();appShell.hidden=true;loginPage.hidden=false;loginForm.reset();window.scrollTo({top:0,behavior:'auto'});});
 document.querySelectorAll('.tiebreak-check').forEach(input=>input.addEventListener('change',()=>{const row=input.closest('.set-block').querySelector('.tiebreak-inputs');row.hidden=!input.checked;if(!input.checked)row.querySelectorAll('input').forEach(field=>field.value='');}));document.querySelector('#cancelMatchEdit').addEventListener('click',()=>{resetMatchForm();showView('overview');});
 document.querySelector('#matchForm').addEventListener('submit',event=>{event.preventDefault();const valid=collectValidSets();if(!valid)return;const wasEditing=Boolean(editingMatchId);const editId=editingMatchId;const note=document.querySelector('#matchNote').value.trim();const id=editId||String(Date.now());const match={id:Number(id),opponent:document.querySelector('#opponent').value.trim(),date:document.querySelector('#matchDate').value,surface:document.querySelector('#surface').value,sets:valid.sets,matchType:document.querySelector('input[name="matchType"]:checked').value,satisfaction:document.querySelector('input[name="satisfaction"]:checked').value,note,result:valid.won>valid.lost?'Win':'Loss'};let suggestions=0;updateAccount(account=>{if(wasEditing){const index=account.matches.findIndex(item=>String(item.id)===editId);if(index>=0)account.matches[index]=match;}else account.matches.push(match);suggestions=generateExercises(note,match.id,account);});resetMatchForm();renderData();renderCalendar();renderExercises();showView('overview');showToast(wasEditing?'Match updated':suggestions?`Match saved and ${suggestions} training ${suggestions===1?'suggestion was':'suggestions were'} created`:'Match saved');openMatchDetail(match.id);});
@@ -533,7 +534,7 @@ async function initializeApp() {
   await refreshStorageStatus();
   if(!authToken||!currentEmail)return;
   try {
-    const response = await fetch('/api/account', {cache:'no-store',headers:authHeaders()});
+    const response = await fetch(CLOUD_ENDPOINTS.player, {cache:'no-store',headers:authHeaders()});
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Could not read the database');
     accountsCache = {[currentEmail]:result.account};

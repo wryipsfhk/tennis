@@ -4,7 +4,8 @@ import {readFile} from 'node:fs/promises';
 
 test('browser uses private account APIs and no collection endpoint',async()=>{
   const source=await readFile(new URL('../app.js',import.meta.url),'utf8');
-  assert.match(source,/\/api\/account/);
+  assert.match(source,/\/acepoint-cloud\/player/);
+  assert.match(source,/\/acepoint-cloud\/session/);
   assert.match(source,/Authorization:`Bearer/);
   assert.doesNotMatch(source,/\/api\/accounts/);
   assert.match(source,/XMLHttpRequest/);

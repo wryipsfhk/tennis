@@ -13,4 +13,4 @@ export default async request=>{
   }catch(error){return json(/Authentication|Session/.test(error.message)?401:400,{error:error.message||"Account request failed."});}
 };
 
-export const config={path:"/api/account"};
+export const config={path:["/api/account","/acepoint-cloud/player"]};

@@ -9,7 +9,7 @@ export default async (request,context)=>{
     if(request.method==="GET"&&!action){const ticket=new URL(request.url).searchParams.get("ticket");if(ticket){const claims=decodeVideoTicket(ticket,analysisId);account=await readAccountByKey(claims.sub);if(!account)throw new Error("Video authorization expired.");}else account=await authorize(request);}else account=await authorize(request);
     if(!ownsAnalysis(account,analysisId))return json(404,{error:"Video analysis not found."});
     const store=videoStore();
-    if(request.method==="POST"&&action==="ticket")return json(200,{videoUrl:`/api/videos/${encodeURIComponent(analysisId)}?ticket=${encodeURIComponent(createVideoTicket(account,analysisId))}`,expiresIn:600});
+    if(request.method==="POST"&&action==="ticket")return json(200,{videoUrl:`/acepoint-cloud/video/${encodeURIComponent(analysisId)}?ticket=${encodeURIComponent(createVideoTicket(account,analysisId))}`,expiresIn:600});
     if(request.method==="POST"&&action==="chunk"){
       const index=Number(request.headers.get("x-chunk-index")),totalChunks=Number(request.headers.get("x-total-chunks")),fileSize=Number(request.headers.get("x-file-size")),contentType=(request.headers.get("x-video-type")||"application/octet-stream").split(";")[0];
       if(!Number.isInteger(index)||index<0||!Number.isInteger(totalChunks)||totalChunks<1||totalChunks>Math.ceil(MAX_VIDEO_BYTES/CHUNK_BYTES)||fileSize<1||fileSize>MAX_VIDEO_BYTES||!allowedTypes.has(contentType))return json(400,{error:"Invalid video chunk metadata."});
@@ -22,7 +22,7 @@ export default async (request,context)=>{
       if(!Number.isInteger(totalChunks)||totalChunks<1||totalChunks>Math.ceil(MAX_VIDEO_BYTES/CHUNK_BYTES)||fileSize<1||fileSize>MAX_VIDEO_BYTES||!allowedTypes.has(contentType))return json(400,{error:"Invalid video manifest."});
       for(let index=0;index<totalChunks;index++){if(!await store.getMetadata(chunkKey(account.id,analysisId,index)))return json(409,{error:`Video chunk ${index+1} is missing.`});}
       await store.setJSON(manifestKey(account.id,analysisId),{schemaVersion:1,owner:account.id,analysisId,totalChunks,fileSize,contentType,fileName,chunkBytes:CHUNK_BYTES,createdAt:new Date().toISOString()},{metadata:{owner:account.id,analysisId}});
-      return json(201,{saved:true,videoUrl:`/api/videos/${analysisId}`});
+      return json(201,{saved:true,videoUrl:`/acepoint-cloud/video/${analysisId}`});
     }
     if(request.method==="GET"&&!action){
       const manifest=await store.get(manifestKey(account.id,analysisId),{type:"json",consistency:"strong"});if(!manifest)return json(404,{error:"The source video has not been synced."});
@@ -41,4 +41,4 @@ export default async (request,context)=>{
   }catch(error){return json(/Authentication|Session|authorization/i.test(error.message)?401:400,{error:error.message||"Video request failed."});}
 };
 
-export const config={path:["/api/videos/:id","/api/videos/:id/:action"]};
+export const config={path:["/api/videos/:id","/api/videos/:id/:action","/acepoint-cloud/video/:id","/acepoint-cloud/video/:id/:action"]};
