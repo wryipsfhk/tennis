@@ -7,6 +7,9 @@ test('browser uses private account APIs and no collection endpoint',async()=>{
   assert.match(source,/\/api\/account/);
   assert.match(source,/Authorization:`Bearer/);
   assert.doesNotMatch(source,/\/api\/accounts/);
+  assert.match(source,/XMLHttpRequest/);
+  assert.match(source,/safariLoginFallback/);
+  assert.doesNotMatch(source,/setError\('#loginError',error\.message\|\|'Load failed'/);
 });
 
 test('analysis remains local first, then syncs private chunks',async()=>{

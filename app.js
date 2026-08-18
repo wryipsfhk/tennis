@@ -55,8 +55,20 @@ function accounts() {
 function authHeaders(extra={}) { return authToken ? {...extra,Authorization:`Bearer ${authToken}`} : extra; }
 function rememberSession(token,email,persistent=true) { clearSession();authToken=token;currentEmail=email;const storage=persistent?localStorage:sessionStorage;storage.setItem(AUTH_TOKEN_KEY,token);storage.setItem(AUTH_EMAIL_KEY,email); }
 function clearSession() { authToken='';currentEmail='';accountsCache={};for(const storage of [localStorage,sessionStorage]){storage.removeItem(AUTH_TOKEN_KEY);storage.removeItem(AUTH_EMAIL_KEY);}sessionStorage.removeItem('tennis-current-user'); }
+function safariLoginFallback(payload) {
+  return new Promise((resolve,reject)=>{
+    const request=new XMLHttpRequest();request.open('POST',`/api/auth?retry=${Date.now()}`);request.timeout=25000;request.setRequestHeader('Content-Type','application/json');
+    request.onload=()=>{let result={};try{result=JSON.parse(request.responseText||'{}');}catch{}if(request.status>=200&&request.status<300)resolve(result);else reject(new Error(result.error||'Authentication could not be completed.'));};
+    request.onerror=()=>reject(new Error('AcePoint could not reach secure sign-in. Check your connection, reload the page, and try again.'));
+    request.ontimeout=()=>reject(new Error('Secure sign-in took too long to respond. Please try again.'));
+    request.send(JSON.stringify(payload));
+  });
+}
 async function authRequest(payload) {
-  const response=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}),result=await response.json().catch(()=>({}));
+  let response;
+  try{response=await fetch('/api/auth',{method:'POST',cache:'no-store',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});}
+  catch(error){if(payload.action==='login')return safariLoginFallback(payload);throw new Error('AcePoint could not reach secure account services. Check your connection, reload the page, and try again.');}
+  const result=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(result.error||'Authentication could not be completed.');
   return result;
 }
