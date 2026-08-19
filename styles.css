@@ -173,6 +173,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .app-shell .exercise-examples{border:1px solid #cadbd4;background:#e4ece8;color:var(--ink)}
 .app-shell .exercise-examples .examples-head{border-bottom-color:#c4d5ce}
 .app-shell .exercise-examples .examples-head span{color:#5f746e}
+.app-shell .exercise-examples .examples-head button{border:0;background:transparent;color:var(--green);padding:4px 0;font-size:9px;font-weight:800}
+.app-shell .exercise-examples .examples-head button:hover{text-decoration:underline;text-underline-offset:3px}
 .app-shell .exercise-examples article{border-bottom-color:#c9d8d2;color:#29463f}
 .app-shell .exercise-examples article button{border-color:#8fb9aa;background:#d3e5dc;color:#176e5c}
 .app-shell .exercise-examples article button:hover{background:var(--green);color:#fff}

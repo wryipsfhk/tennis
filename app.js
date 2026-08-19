@@ -350,6 +350,34 @@ function renderExercises() {
   const badge=document.querySelector('#exerciseBadge'); badge.hidden=active.length===0; badge.textContent=active.length;
 }
 
+const drillIdeaPool = [
+  'Cross-court rally · 20 balls',
+  'Forehand cross-court · 3 × 20 balls',
+  'Backhand cross-court · 3 × 20 balls',
+  'Down-the-line change of direction · 3 × 10 balls',
+  'Attacking forehand · 3 × 15 balls',
+  'Deep middle rally · 3 × 15 balls',
+  'Serve to each target · 10 balls per target',
+  'Second-serve spin · 3 × 20 balls',
+  'Return and recover · 3 × 10 each side',
+  'Approach shot and first volley · 3 × 8',
+  'Net volleys · 10 minutes',
+  'Overhead and recovery · 3 × 10 balls',
+  'Split-step starts · 3 × 12 each direction',
+  'Wide-ball recovery · 3 × 8 each side',
+  'Two cross-court, one down the line · 5 rounds',
+  'Twenty-ball consistency challenge · 3 rounds'
+];
+let visibleDrillIdeas = [];
+function renderDrillIdeas() {
+  const activeTitles=new Set((currentAccount()?.exercises||[]).filter(item=>!item.completed).map(item=>item.title));
+  const available=drillIdeaPool.filter(title=>!activeTitles.has(title));
+  const pool=(available.length>=3?available:drillIdeaPool).filter(title=>!visibleDrillIdeas.includes(title));
+  const source=pool.length>=3?pool:(available.length>=3?available:drillIdeaPool);
+  visibleDrillIdeas=[...source].sort(()=>Math.random()-.5).slice(0,3);
+  document.querySelector('#exerciseExampleList').innerHTML=visibleDrillIdeas.map(title=>`<article><span>${escapeHtml(title)}</span><button type="button" data-exercise-example="${escapeHtml(title)}">Add</button></article>`).join('');
+}
+
 const goalExerciseRules = [
   {terms:['serve','toss','double fault','second serve'], exercises:['Toss placement · 3 × 15','Second-serve spin · 3 × 20 balls']},
   {terms:['forehand'], exercises:['Forehand cross-court · 3 × 20 balls','Attacking forehand · 3 × 15 balls']},
@@ -470,8 +498,8 @@ document.querySelector('#goalTitle').addEventListener('input',event=>{const date
 document.querySelector('#goalForm').addEventListener('submit',event=>{event.preventDefault();const title=document.querySelector('#goalTitle').value.trim(),date=inferredGoalDate(title,document.querySelector('#goalDate').value);openPlanReview({goal:title,date,exercises:recommendedExercises(title)});});
 ['#activeGoalList','#completedGoalList'].forEach(selector=>{const list=document.querySelector(selector);list.addEventListener('change',event=>{const input=event.target.closest('[data-goal-check]');if(!input)return;updateAccount(account=>{const goal=account.goals.find(item=>String(item.id)===input.dataset.goalCheck);if(goal)goal.completed=input.checked;});renderGoals();});list.addEventListener('click',event=>{const button=event.target.closest('[data-goal-delete]');if(!button)return;const id=button.dataset.goalDelete;openConfirm('Delete this training goal?','This goal and its progress will be permanently removed.',()=>{updateAccount(account=>account.goals=account.goals.filter(item=>String(item.id)!==id));renderGoals();showToast('Goal deleted');});});});
 document.querySelector('#exerciseForm').addEventListener('submit',event=>{event.preventDefault();updateAccount(account=>account.exercises.unshift({id:Date.now(),title:document.querySelector('#exerciseTitle').value.trim(),completed:false}));event.currentTarget.reset();renderExercises();showToast('Drill added');});
-document.querySelector('#exerciseExamplesToggle').addEventListener('click',event=>{const examples=document.querySelector('#exerciseExamples');examples.hidden=!examples.hidden;event.currentTarget.textContent=examples.hidden?'Need ideas? View examples':'Hide drill examples';});
-document.querySelector('#exerciseExamples').addEventListener('click',event=>{const button=event.target.closest('[data-exercise-example]');if(!button)return;const title=button.dataset.exerciseExample;const exists=(currentAccount()?.exercises||[]).some(item=>item.title===title&&!item.completed);if(exists){showToast('This drill is already in your active list');return;}updateAccount(account=>account.exercises.unshift({id:Date.now(),title,completed:false}));renderExercises();showToast('Drill added');});
+document.querySelector('#exerciseExamplesToggle').addEventListener('click',event=>{const examples=document.querySelector('#exerciseExamples');examples.hidden=!examples.hidden;if(!examples.hidden)renderDrillIdeas();event.currentTarget.textContent=examples.hidden?'Need ideas? View examples':'Hide drill examples';});
+document.querySelector('#exerciseExamples').addEventListener('click',event=>{if(event.target.closest('#exerciseExamplesRefresh')){renderDrillIdeas();return;}const button=event.target.closest('[data-exercise-example]');if(!button)return;const title=button.dataset.exerciseExample;const exists=(currentAccount()?.exercises||[]).some(item=>item.title===title&&!item.completed);if(exists){showToast('This drill is already in your active list');return;}updateAccount(account=>account.exercises.unshift({id:Date.now(),title,completed:false}));renderExercises();renderDrillIdeas();showToast('Drill added');});
 ['#activeExerciseList','#completedExerciseList'].forEach(selector=>{const list=document.querySelector(selector);list.addEventListener('change',event=>{const input=event.target.closest('[data-exercise-check]');if(!input)return;updateAccount(account=>{const item=account.exercises.find(ex=>String(ex.id)===input.dataset.exerciseCheck);if(item)item.completed=input.checked;});renderExercises();});list.addEventListener('click',event=>{const button=event.target.closest('[data-exercise-delete]');if(!button)return;const id=button.dataset.exerciseDelete;const item=currentAccount()?.exercises.find(exercise=>String(exercise.id)===id);const isSuggestion=Boolean(item?.generatedFrom&&!item.completed);openConfirm(isSuggestion?'Dismiss this training suggestion?':'Delete this drill?',isSuggestion?'This suggestion will be removed from your active drills.':'This drill will be permanently removed.',()=>{updateAccount(account=>account.exercises=account.exercises.filter(exercise=>String(exercise.id)!==id));renderExercises();showToast(isSuggestion?'Suggestion dismissed':'Drill deleted');});});});
 document.querySelector('#confirmCancel').addEventListener('click',()=>{pendingConfirmAction=null;document.querySelector('#confirmModal').close();});
 document.querySelector('#confirmAccept').addEventListener('click',()=>{const action=pendingConfirmAction;pendingConfirmAction=null;document.querySelector('#confirmModal').close();if(action)action();});
