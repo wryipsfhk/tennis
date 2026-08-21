@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f7f4" />
   <title>AcePoint — Your Tennis Progress Journal</title>
   <meta name="description" content="Review match footage, record results, and keep your next training focus in one place with AcePoint." />
-  <link rel="stylesheet" href="styles.css?v=20260821-1" />
+  <link rel="stylesheet" href="styles.css?v=20260821-2" />
 </head>
 <body>
   <section class="login-page landing-page" id="loginPage" aria-label="AcePoint public website">
@@ -17,54 +17,40 @@
     </header>
 
     <main id="top">
-      <section class="landing-hero">
+      <section class="landing-hero landing-hero--compact">
         <div class="hero-court-lines" aria-hidden="true"><i></i><i></i><i></i></div>
         <div class="landing-hero-copy">
           <span class="landing-kicker">Your tennis, reviewed with purpose</span>
           <h1>Play it back.<br><em>Move forward.</em></h1>
           <p>Keep your matches, movement reviews and next training focus together—so every session starts with a reason.</p>
           <div class="landing-actions"><button class="landing-try landing-try--light" type="button" data-open-signup>Try AcePoint <span>↗</span></button><a href="#how-it-works">See how it works <span>↓</span></a></div>
-          <div class="hero-trust"><span>Private player journal</span><span>Match-by-match history</span><span>Evidence before advice</span></div>
+          <div class="hero-trust"><span>Your own player journal</span><span>Match-by-match history</span><span>One clear next focus</span></div>
         </div>
-        <aside class="hero-journal" aria-label="What AcePoint keeps together">
-          <div class="hero-journal-head"><span>Your match loop</span><b>ACEPOINT</b></div>
-          <ol>
-            <li><span>01</span><div><strong>Record the result</strong><p>Score, format, satisfaction, and your own reflection.</p></div></li>
-            <li><span>02</span><div><strong>Review visible movement</strong><p>Rotation, balance, stance, and swing windows from your video.</p></div></li>
-            <li><span>03</span><div><strong>Set the next focus</strong><p>Confirm the goal and drills that belong in your training plan.</p></div></li>
-          </ol>
-          <div class="hero-journal-foot"><span>No sample records</span><button type="button" data-open-signup>Start your own journal <b>→</b></button></div>
+        <aside class="hero-journal hero-journal--features" id="features" aria-label="AcePoint key features">
+          <div class="hero-journal-head"><span>Everything in one journal</span><b>SELECT TO EXPAND</b></div>
+          <div class="feature-disclosure">
+            <details><summary><span>Match records &amp; trends</span><small>Scores, reflections, progress</small></summary><p>Keep scores, satisfaction, and reflections together, then see monthly win-rate and satisfaction trends.</p></details>
+            <details><summary><span>Video movement review</span><small>Visible patterns, saved moments</small></summary><p>Review body movement from match footage, revisit highlighted windows, and watch them in slow motion.</p></details>
+            <details><summary><span>Goals &amp; exercises</span><small>Turn insight into practice</small></summary><p>Turn a reflection into a SMART goal and drills you can confirm, customise, complete, or dismiss.</p></details>
+            <details><summary><span>Match calendar</span><small>What is next, what happened</small></summary><p>Schedule your next match, see the countdown, and revisit match details from any played date.</p></details>
+          </div>
+          <div class="hero-journal-foot"><span>Add your information when you are ready</span><button type="button" data-open-signup>Start your journal <b>→</b></button></div>
         </aside>
       </section>
 
-      <section class="product-preview landing-proof" aria-label="The real AcePoint workspace">
-        <div class="preview-caption"><span>The player workspace</span><p>One calm place for the score, the honest reflection, and what you want to improve next.</p></div>
-        <div class="proof-grid">
-          <article class="proof-main"><span class="proof-kicker">After every match</span><h2>Keep the evidence.<br>Choose one clear next step.</h2><p>AcePoint begins empty. Every result, trend, review, goal, and drill comes from information you add yourself.</p><button class="landing-try" type="button" data-open-signup>Open your workspace <span>↗</span></button></article>
-          <article><span class="proof-number">01</span><strong>Match journal</strong><p>Scores, match type, satisfaction, reflection, and optional footage stay connected.</p></article>
-          <article><span class="proof-number">02</span><strong>Movement review</strong><p>Findings stay attached to the matching video window and report confidence honestly.</p></article>
-          <article><span class="proof-number">03</span><strong>Training focus</strong><p>You decide which suggested goal or exercise becomes part of your plan.</p></article>
-        </div>
-      </section>
-
-      <section class="landing-process" id="how-it-works">
-        <div class="landing-section-head"><span>How it works</span><h2>A useful review has a sequence.</h2><p>AcePoint keeps the match, the movement, and the next practice connected.</p></div>
-        <ol><li><span>01</span><div><h3>Log the match</h3><p>Add the score, match type, satisfaction, and the reflection you want to remember.</p></div></li><li><span>02</span><div><h3>Review your movement</h3><p>Upload footage and review visible patterns in rotation, balance, stance, and swing path.</p></div></li><li><span>03</span><div><h3>Choose what to work on next</h3><p>Confirm a focused goal and practical drills instead of letting the review disappear.</p></div></li></ol>
-      </section>
-
-      <section class="landing-features" id="features">
-        <div class="landing-section-head landing-section-head--light"><span>One place for the full loop</span><h2>From final point<br>to next practice.</h2></div>
-        <div class="feature-list">
-          <article><span>01</span><div><h3>Match records and trends</h3><p>Keep scores, satisfaction, and reflections together, then see monthly win-rate and satisfaction trends.</p></div><i>RESULTS / TRENDS</i></article>
-          <article><span>02</span><div><h3>Video movement review</h3><p>Review body movement from match footage, revisit highlighted windows, and watch them in slow motion.</p></div><i>MOVEMENT / VIDEO</i></article>
-          <article><span>03</span><div><h3>Goals and exercises</h3><p>Turn a reflection into a SMART goal and a list of drills you can confirm, customise, complete, or dismiss.</p></div><i>FOCUS / PRACTICE</i></article>
-          <article><span>04</span><div><h3>Match calendar</h3><p>Schedule what is next, see your countdown, and open any played date to revisit its match details.</p></div><i>SCHEDULE / HISTORY</i></article>
-        </div>
+      <section class="landing-process landing-process--compact" id="how-it-works">
+        <div class="landing-section-head"><span>How it works</span><h2>Three steps after the final point.</h2><p>The route is simple. Open a step only when you want the detail.</p></div>
+        <ol class="process-disclosure">
+          <li><details><summary><span>01</span><div><h3>Log the match</h3><small>Record the result and how it felt.</small></div></summary><p>Add the score, match type, satisfaction, reflection, and optional footage you want to keep together.</p></details></li>
+          <li><details><summary><span>02</span><div><h3>Review your movement</h3><small>Look back at visible movement patterns.</small></div></summary><p>Review rotation, balance, stance, and swing windows from your video, with findings attached to the matching moment.</p></details></li>
+          <li><details><summary><span>03</span><div><h3>Choose what comes next</h3><small>Keep one focused training direction.</small></div></summary><p>Confirm the goal and practical drills that belong in your plan instead of letting the review disappear.</p></details></li>
+        </ol>
+        <details class="landing-context"><summary>Why does AcePoint begin with an empty journal?</summary><p>There are no invented sample records. Every result, trend, review, goal, and drill comes from information you add yourself—and you decide which suggestions become part of your training plan.</p></details>
       </section>
 
       <section class="landing-final-cta">
         <div class="cta-court" aria-hidden="true"><i></i><i></i></div>
-        <span>Keep the next point connected to the last one.</span><h2>Your match is finished.<br>Your review can start.</h2><button class="landing-try landing-try--light" type="button" data-open-signup>Try AcePoint <span>↗</span></button>
+        <span>Keep the next point connected to the last one.</span><h2>Ready for your next point?</h2><div class="landing-final-actions"><button class="landing-try landing-try--light" type="button" data-open-signup>Try AcePoint <span>↗</span></button><button class="landing-final-signin" type="button" data-open-login>Sign in</button></div>
       </section>
     </main>
 
@@ -218,8 +204,8 @@
             </div>
             <div class="custom-score-fields" id="customScoreFields" hidden>
               <div class="score-input-head"><h3>Custom Points Game</h3><span>Choose the target and required winning lead.</span></div>
-              <div class="custom-score-rules"><label class="field"><span>Points to Win</span><input id="customTarget" type="number" min="1" step="1" value="10" disabled /></label><label class="field"><span>Win By</span><input id="customWinBy" type="number" min="1" step="1" value="2" disabled /></label></div>
-              <div class="set-block custom-score-block"><div class="set-input"><span>Final Score</span><input id="customPlayerScore" type="number" min="0" step="1" placeholder="You" disabled /><i>—</i><input id="customOpponentScore" type="number" min="0" step="1" placeholder="Opponent" disabled /></div><p>The winner must reach the target and finish with the lead selected above.</p></div>
+              <div class="custom-score-rules"><label class="field"><span>Points to Win</span><input id="customTarget" type="number" min="1" step="1" value="10" disabled /></label><label class="field"><span>Win By</span><input id="customWinBy" type="number" min="0" step="1" value="2" disabled /></label><label class="first-to-target-toggle"><input id="customFirstToTarget" type="checkbox" disabled /><span>First to target wins <small>Sets Win By to 0</small></span></label></div>
+              <div class="set-block custom-score-block"><div class="set-input"><span>Final Score</span><input id="customPlayerScore" type="number" min="0" step="1" placeholder="You" disabled /><i>—</i><input id="customOpponentScore" type="number" min="0" step="1" placeholder="Opponent" disabled /></div><p>The winner must reach the target. Choose a winning lead, or use Win By 0 when the first player to the target wins.</p></div>
             </div>
             <div class="score-error" id="scoreError" role="alert" hidden><strong>Invalid Score</strong><span id="scoreErrorText">The winner needs at least 6 games and a 2-game lead. A tiebreak winner needs at least 7 points and a 2-point lead.</span></div>
           </article>
@@ -296,7 +282,7 @@
   <dialog class="coaching-video-modal" id="coachingVideoModal"><div class="coaching-modal-head"><div><span>Technique Demonstration</span><h2 id="coachingModalTitle"></h2><p id="coachingModalChapter"></p></div><button type="button" id="coachingModalClose" aria-label="Close coaching video">×</button></div><div class="coaching-modal-player" id="coachingModalPlayer"></div></dialog>
   <dialog class="modal analysis-name-modal" id="analysisNameModal"><form id="analysisNameForm"><button class="modal-close" id="analysisNameClose" type="button" aria-label="Close">×</button><span class="eyebrow eyebrow--green">ANALYSIS NAME</span><h2>Name This Analysis</h2><p>The original date and time will remain in the history.</p><label class="field"><span>Name</span><input id="analysisNameInput" maxlength="40" required /></label><button class="primary-button primary-button--wide" type="submit">Save Name <span>→</span></button></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="scoring.js?v=20260821-1"></script>
-  <script src="app.js?v=20260821-1"></script>
+  <script src="scoring.js?v=20260821-2"></script>
+  <script src="app.js?v=20260821-2"></script>
 </body>
 </html>

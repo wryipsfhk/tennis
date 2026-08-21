@@ -42,9 +42,9 @@ const AcePointScoring = (() => {
 
   function validateCustomPoints({player,opponent,target,winBy}) {
     if (player === '' || opponent === '') return {ok:false,error:'Enter the final point score for both players.'};
-    const playerPoints=nonNegativeInteger(player), opponentPoints=nonNegativeInteger(opponent), targetPoints=positiveInteger(target), lead=positiveInteger(winBy);
+    const playerPoints=nonNegativeInteger(player), opponentPoints=nonNegativeInteger(opponent), targetPoints=positiveInteger(target), lead=nonNegativeInteger(winBy);
     if (targetPoints === null) return {ok:false,error:'Points to win must be a whole number greater than zero.'};
-    if (lead === null) return {ok:false,error:'The required winning lead must be a whole number greater than zero.'};
+    if (lead === null) return {ok:false,error:'The required winning lead must be a whole number of zero or more.'};
     if (playerPoints === null || opponentPoints === null) return {ok:false,error:'Final scores must be whole numbers of zero or more.'};
     if (playerPoints === opponentPoints) return {ok:false,error:'A completed game cannot end in a tie.'};
     const high=Math.max(playerPoints,opponentPoints), difference=Math.abs(playerPoints-opponentPoints);

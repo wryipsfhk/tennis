@@ -33,3 +33,11 @@ test('custom points enforce the chosen target and lead',async()=>{
   assert.match(rules.validateCustomPoints({player:'10',opponent:'9',target:'10',winBy:'2'}).error,/lead by at least 2/);
   assert.equal(rules.validateCustomPoints({player:'12',opponent:'10',target:'10',winBy:'2'}).ok,true);
 });
+
+test('win by zero allows the first player to reach the target to win',async()=>{
+  const rules=await scoringRules();
+  const result=rules.validateCustomPoints({player:'7',opponent:'6',target:'7',winBy:'0'});
+  assert.equal(result.ok,true);assert.equal(result.won,1);assert.deepEqual({...result.customScoring},{target:7,winBy:0});
+  assert.match(rules.validateCustomPoints({player:'6',opponent:'5',target:'7',winBy:'0'}).error,/at least 7/);
+  assert.match(rules.validateCustomPoints({player:'7',opponent:'7',target:'7',winBy:'0'}).error,/cannot end in a tie/);
+});
