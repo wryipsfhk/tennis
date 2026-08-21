@@ -23,3 +23,15 @@ test('analysis remains local first, then syncs private chunks',async()=>{
   assert.match(source,/Sync video now/);
   assert.match(source,/Video synced across devices/);
 });
+
+test('movement analysis uses distinct short windows and understandable failures',async()=>{
+  const analyzer=await readFile(new URL('../client-analyzer.js',import.meta.url),'utf8');
+  const worker=await readFile(new URL('../pose-worker.js',import.meta.url),'utf8');
+  const app=await readFile(new URL('../app.js',import.meta.url),'utf8');
+  assert.match(worker,/runningMode: "IMAGE"/);
+  assert.match(analyzer,/movementWindowCenters\(candidate,source\.duration\)/);
+  assert.match(analyzer,/distinctWindows\.size<2/);
+  assert.match(analyzer,/analysisVersion:9/);
+  assert.match(app,/We lost track of the selected player/);
+  assert.match(app,/No report or advice was created/);
+});

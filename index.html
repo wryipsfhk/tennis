@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f7f4" />
   <title>AcePoint — Your Tennis Progress Journal</title>
   <meta name="description" content="Review match footage, record results, and keep your next training focus in one place with AcePoint." />
-  <link rel="stylesheet" href="styles.css?v=20260819-1" />
+  <link rel="stylesheet" href="styles.css?v=20260821-1" />
 </head>
 <body>
   <section class="login-page landing-page" id="loginPage" aria-label="AcePoint public website">
@@ -209,10 +209,18 @@
               <label class="field"><span>Court Surface</span><select id="surface"><option>Hard</option><option>Clay</option><option>Grass</option><option>Indoor Carpet</option></select></label>
             </div>
             <fieldset class="choice-field"><legend>Match Type</legend><div class="segmented"><label><input type="radio" name="matchType" value="Singles" checked /><span>Singles</span></label><label><input type="radio" name="matchType" value="Doubles" /><span>Doubles</span></label></div></fieldset>
+            <fieldset class="choice-field score-format-field"><legend>Scoring Format</legend><div class="segmented"><label><input type="radio" name="scoreFormat" value="standard" checked /><span>Standard Sets</span></label><label><input type="radio" name="scoreFormat" value="custom-points" /><span>Custom Points</span></label></div><small>Standard tennis stays selected unless you choose a custom points game.</small></fieldset>
+            <div id="standardScoreFields">
             <div class="score-input-head"><h3>Set Scores</h3><span>Winner needs at least 6 games and a 2-game lead; enter a tiebreak at 6–6</span></div>
             <div class="set-block"><div class="set-input"><span>Set 1</span><input class="player-score" type="number" min="0" max="20" required placeholder="You" /><i>—</i><input class="opponent-score" type="number" min="0" max="20" required placeholder="Opponent" /></div><label class="tiebreak-toggle"><input class="tiebreak-check" type="checkbox" /><span>＋ Add tiebreak score</span></label><div class="tiebreak-inputs" hidden><span>Tiebreak</span><input class="tiebreak-player" type="number" min="0" max="100" placeholder="You" /><i>—</i><input class="tiebreak-opponent" type="number" min="0" max="100" placeholder="Opponent" /></div></div>
             <div class="set-block"><div class="set-input"><span>Set 2</span><input class="player-score" type="number" min="0" max="20" placeholder="You" /><i>—</i><input class="opponent-score" type="number" min="0" max="20" placeholder="Opponent" /></div><label class="tiebreak-toggle"><input class="tiebreak-check" type="checkbox" /><span>＋ Add tiebreak score</span></label><div class="tiebreak-inputs" hidden><span>Tiebreak</span><input class="tiebreak-player" type="number" min="0" max="100" placeholder="You" /><i>—</i><input class="tiebreak-opponent" type="number" min="0" max="100" placeholder="Opponent" /></div></div>
             <div class="set-block"><div class="set-input"><span>Set 3</span><input class="player-score" type="number" min="0" max="20" placeholder="You" /><i>—</i><input class="opponent-score" type="number" min="0" max="20" placeholder="Opponent" /></div><label class="tiebreak-toggle"><input class="tiebreak-check" type="checkbox" /><span>＋ Add tiebreak score</span></label><div class="tiebreak-inputs" hidden><span>Tiebreak</span><input class="tiebreak-player" type="number" min="0" max="100" placeholder="You" /><i>—</i><input class="tiebreak-opponent" type="number" min="0" max="100" placeholder="Opponent" /></div></div>
+            </div>
+            <div class="custom-score-fields" id="customScoreFields" hidden>
+              <div class="score-input-head"><h3>Custom Points Game</h3><span>Choose the target and required winning lead.</span></div>
+              <div class="custom-score-rules"><label class="field"><span>Points to Win</span><input id="customTarget" type="number" min="1" step="1" value="10" disabled /></label><label class="field"><span>Win By</span><input id="customWinBy" type="number" min="1" step="1" value="2" disabled /></label></div>
+              <div class="set-block custom-score-block"><div class="set-input"><span>Final Score</span><input id="customPlayerScore" type="number" min="0" step="1" placeholder="You" disabled /><i>—</i><input id="customOpponentScore" type="number" min="0" step="1" placeholder="Opponent" disabled /></div><p>The winner must reach the target and finish with the lead selected above.</p></div>
+            </div>
             <div class="score-error" id="scoreError" role="alert" hidden><strong>Invalid Score</strong><span id="scoreErrorText">The winner needs at least 6 games and a 2-game lead. A tiebreak winner needs at least 7 points and a 2-point lead.</span></div>
           </article>
           <article class="panel feeling-panel">
@@ -229,12 +237,13 @@
         <div class="motion-layout">
           <form class="panel motion-upload" id="motionForm">
             <div class="motion-step"><b>01</b><span>Upload a full match</span></div>
+            <div class="video-guidance"><strong>For the clearest movement review</strong><ul><li>Keep the camera relatively still.</li><li>Keep the player visible and large enough to see.</li><li>Include the player’s shoulders, hips, knees, and feet when possible.</li><li>Avoid long sections where people block the player.</li></ul></div>
             <label class="motion-drop" id="motionDrop"><input id="motionVideo" type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" required /><span class="motion-camera">▶</span><strong id="motionFileName">Choose match video</strong><small>MP4, MOV, M4V, or WebM · 120 MB and 45 minutes max · analyzed here, then privately synced</small></label>
             <video id="motionPreview" controls hidden></video>
             <button class="primary-button primary-button--wide" id="analyzeButton" type="submit">Identify Players <span>→</span></button>
             <div class="player-selection" id="playerSelection" hidden><div class="motion-step"><b>02</b><span>Choose the player to analyze</span></div><p>Multiple players were detected. Select yourself before starting the analysis.</p><div class="player-candidates" id="playerCandidates"></div><button class="primary-button primary-button--wide" id="confirmPlayerButton" type="button">Confirm and Analyze Video <span>→</span></button></div>
             <div class="analysis-loading" id="analysisLoading" hidden><i></i><strong id="analysisLoadingTitle">Reading match video</strong><span id="analysisLoadingDetail">Preparing frames locally. Secure upload begins after the report is complete.</span><div class="analysis-progress" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><b id="analysisProgressBar"></b></div><small id="analysisProgressValue">0%</small></div>
-            <p class="form-error analysis-error" id="analysisError" role="alert"></p>
+            <div class="form-error analysis-error" id="analysisError" role="alert"></div>
           </form>
           <section class="motion-result-column"><div id="analysisResult"><div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Your movement windows, observations, and possible improvements will appear here.</p></div></div><div class="analysis-history" id="analysisHistory"></div></section>
         </div>
@@ -287,6 +296,7 @@
   <dialog class="coaching-video-modal" id="coachingVideoModal"><div class="coaching-modal-head"><div><span>Technique Demonstration</span><h2 id="coachingModalTitle"></h2><p id="coachingModalChapter"></p></div><button type="button" id="coachingModalClose" aria-label="Close coaching video">×</button></div><div class="coaching-modal-player" id="coachingModalPlayer"></div></dialog>
   <dialog class="modal analysis-name-modal" id="analysisNameModal"><form id="analysisNameForm"><button class="modal-close" id="analysisNameClose" type="button" aria-label="Close">×</button><span class="eyebrow eyebrow--green">ANALYSIS NAME</span><h2>Name This Analysis</h2><p>The original date and time will remain in the history.</p><label class="field"><span>Name</span><input id="analysisNameInput" maxlength="40" required /></label><button class="primary-button primary-button--wide" type="submit">Save Name <span>→</span></button></form></dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js?v=20260819-1"></script>
+  <script src="scoring.js?v=20260821-1"></script>
+  <script src="app.js?v=20260821-1"></script>
 </body>
 </html>

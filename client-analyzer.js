@@ -53,7 +53,7 @@ export async function deleteAnalysisVideo(id) {
 
 function ensureWorker() {
   if (!worker) {
-    worker = new Worker(new URL("./pose-worker.js", import.meta.url));
+    worker = new Worker(new URL("./pose-worker.js?v=20260821-1", import.meta.url));
     worker.addEventListener("message", event => {
       const pending = requests.get(event.data.id);
       if (!pending) return;
@@ -130,19 +130,20 @@ async function detectFrame(video, time) {
   return workerRequest("detect", { bitmap }, [bitmap]);
 }
 
-function visible(point) { return point && Number(point.visibility ?? 1) >= 0.22; }
+function visible(point) { return point && Number(point.visibility ?? 1) >= 0.18; }
 function midpoint(a, b) { return { x:(a.x+b.x)/2, y:(a.y+b.y)/2, z:((a.z||0)+(b.z||0))/2 }; }
 function distance(a, b) { return Math.hypot(a.x-b.x, a.y-b.y); }
 function median(values) { const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.floor(sorted.length/2)] : 0; }
 function percentile(values, fraction) { const sorted=[...values].sort((a,b)=>a-b); return sorted.length ? sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*fraction))] : 0; }
 function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
+function analysisFailure(code,message){const error=new Error(message);error.code=code;return error;}
 
 function poseObservation(landmarks, worldLandmarks, time, poseIndex) {
   const points = landmarks.filter(visible);
-  if (points.length < 10) return null;
+  if (points.length < 8) return null;
   const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
   const bbox={x:Math.min(...xs),y:Math.min(...ys),width:Math.max(...xs)-Math.min(...xs),height:Math.max(...ys)-Math.min(...ys)};
-  if (bbox.height < 0.08) return null;
+  if (bbox.height < 0.045) return null;
   const hips=visible(landmarks[23])&&visible(landmarks[24])?midpoint(landmarks[23],landmarks[24]):null;
   return {time,poseIndex,landmarks,worldLandmarks,bbox,center:hips||{x:bbox.x+bbox.width/2,y:bbox.y+bbox.height/2},scale:bbox.height,visibility:Math.round(points.reduce((sum,p)=>sum+(p.visibility??1),0)/points.length*100)};
 }
@@ -159,11 +160,11 @@ function clusterPlayers(observations) {
     let best=null, bestScore=Infinity;
     for (const track of tracks) {
       const gap=observation.time-track.lastTime;
-      if (gap<=.001 || gap>Math.max(90,track.sampleGap*4)) continue;
+      if (gap<=.001 || gap>Math.max(180,track.sampleGap*5)) continue;
       const spatial=distance(observation.center,track.center)/Math.max(.16,(observation.scale+track.scale)/2);
       const scaleShift=Math.abs(Math.log(Math.max(.05,observation.scale)/Math.max(.05,track.scale)));
       const score=spatial+scaleShift*.35;
-      if(score<1.65&&score<bestScore){best=track;bestScore=score;}
+      if(score<2.05&&score<bestScore){best=track;bestScore=score;}
     }
     if(!best){best={items:[],center:{...observation.center},scale:observation.scale,lastTime:observation.time,sampleGap:5};tracks.push(best);}
     if(best.items.length)best.sampleGap=Math.max(.1,observation.time-best.lastTime);
@@ -187,7 +188,7 @@ async function thumbnail(video, observation) {
 export async function preparePlayers(source, onProgress = () => {}) {
   onProgress(4,"Loading the browser pose model");
   await initializePoseModel();
-  const count=clamp(Math.ceil(source.duration/8),10,18), times=evenlySpaced(source.duration,count);
+  const count=clamp(Math.ceil(source.duration/6),14,36), times=evenlySpaced(source.duration,count);
   const observations=[];
   for(let i=0;i<times.length;i++){
     const result=await detectFrame(source.video,times[i]);
@@ -196,11 +197,11 @@ export async function preparePlayers(source, onProgress = () => {}) {
     await new Promise(resolve=>setTimeout(resolve,0));
   }
   const tracks=clusterPlayers(observations);
-  if(!tracks.length)throw new Error(`No player pose stayed visible across enough sampled frames (${observations.length} clear pose detections). Try a clearer fixed-camera video.`);
+  if(!tracks.length)throw analysisFailure("NO_PLAYER_TRACK","We could not find the same player clearly in enough parts of this video.");
   const candidates=[];
   for(let index=0;index<tracks.length;index++){
     const track=tracks[index],best=[...track.items].sort((a,b)=>b.visibility-a.visibility)[0];
-    candidates.push({label:tracks.length===1?"Selected player":index===0?"Near-side player":index===1?"Far-side player":`Player ${index+1}`,bbox:best.bbox,anchor:{x:median(track.items.map(i=>i.center.x)),y:median(track.items.map(i=>i.center.y)),scale:median(track.items.map(i=>i.scale))},detectionFrames:track.items.length,bestTime:best.time,thumbnail:await thumbnail(source.video,best)});
+    candidates.push({label:tracks.length===1?"Selected player":index===0?"Near-side player":index===1?"Far-side player":`Player ${index+1}`,bbox:best.bbox,anchor:{x:median(track.items.map(i=>i.center.x)),y:median(track.items.map(i=>i.center.y)),scale:median(track.items.map(i=>i.scale))},anchors:track.items.map(item=>({time:item.time,x:item.center.x,y:item.center.y,scale:item.scale})),detectionFrames:track.items.length,bestTime:best.time,thumbnail:await thumbnail(source.video,best)});
   }
   onProgress(100,`${candidates.length} player ${candidates.length===1?"track":"tracks"} found`);
   return candidates;
@@ -222,11 +223,19 @@ function metrics(record, previous) {
   return {kneeAngle:average([angle(p[23],p[25],p[27]),angle(p[24],p[26],p[28])]),elbowAngle:average([angle(p[11],p[13],p[15]),angle(p[12],p[14],p[16])]),stanceRatio,balanceOffset:hip&&ankle&&ankles&&stanceRatio>.45?Math.abs(hip.x-ankle.x)/(ankles/2):null,torsoLean:hip&&shoulder?Math.abs(Math.atan2(shoulder.x-hip.x,hip.y-shoulder.y))*180/Math.PI:null,turnDepth,motionEnergy:energy};
 }
 
+function candidateAnchorAtTime(candidate,time){const anchors=candidate.anchors||[];return anchors.length?anchors.reduce((best,item)=>Math.abs(item.time-time)<Math.abs(best.time-time)?item:best,anchors[0]):candidate.anchor;}
+function movementWindowCenters(candidate,duration){
+  const desired=clamp(Math.ceil(duration/45),8,18),detected=[...(candidate.anchors||[])].sort((a,b)=>a.time-b.time).map(item=>item.time);
+  let centers=detected.length>desired?Array.from({length:desired},(_,index)=>detected[Math.round(index*(detected.length-1)/Math.max(1,desired-1))]):detected;
+  for(const time of evenlySpaced(duration,desired,.015)){if(centers.length>=desired)break;if(!centers.some(existing=>Math.abs(existing-time)<.75))centers.push(time);}
+  return [...new Set(centers.map(time=>Number(time.toFixed(3))))].sort((a,b)=>a-b);
+}
 function closestPose(result,time,candidate,last) {
   const observations=(result.landmarks||[]).map((points,index)=>poseObservation(points,result.worldLandmarks?.[index]||[],time,index)).filter(Boolean);
   let best=null,bestScore=Infinity;
-  for(const item of observations){const anchor=last||candidate.anchor;const spatial=distance(item.center,anchor)/Math.max(.16,(item.scale+(anchor.scale||item.scale))/2),origin=distance(item.center,candidate.anchor)/Math.max(.16,(item.scale+candidate.anchor.scale)/2);const scaleShift=Math.abs(Math.log(Math.max(.05,item.scale)/Math.max(.05,anchor.scale||item.scale)));const score=spatial+origin*.1+scaleShift*.3;if(score<bestScore){best=item;bestScore=score;}}
-  return bestScore<=1.3?{item:best,score:bestScore}:null;
+  const timedAnchor=candidateAnchorAtTime(candidate,time);
+  for(const item of observations){const anchor=last||timedAnchor,spatial=distance(item.center,anchor)/Math.max(.12,(item.scale+(anchor.scale||item.scale))/2),origin=distance(item.center,timedAnchor)/Math.max(.12,(item.scale+(timedAnchor.scale||item.scale))/2),scaleShift=Math.abs(Math.log(Math.max(.035,item.scale)/Math.max(.035,anchor.scale||item.scale))),score=Math.min(spatial+scaleShift*.25,origin+scaleShift*.3+.18);if(score<bestScore){best=item;bestScore=score;}}
+  return bestScore<=1.82?{item:best,score:bestScore}:null;
 }
 
 const ISSUE_DEFINITIONS=[
@@ -241,7 +250,7 @@ function selectFindings(records) {
   const energies=records.map(r=>r.metrics.motionEnergy).filter(Number.isFinite),activeCutoff=Math.max(.07,percentile(energies,.55));
   records.forEach(r=>{if(r.metrics.motionEnergy!=null&&r.metrics.motionEnergy<activeCutoff)r.metrics.motionEnergy*=.75;});
   const findings=[];
-  for(const definition of ISSUE_DEFINITIONS){const matches=records.filter(r=>definition.test(r.metrics)).sort((a,b)=>definition.severity(b.metrics)-definition.severity(a.metrics));if(matches.length<2)continue;const chosen=matches.find(record=>findings.every(item=>Math.abs(item.record.time-record.time)>1.4));if(chosen)findings.push({definition,record:chosen,repeatCount:matches.length});if(findings.length===3)break;}
+  for(const definition of ISSUE_DEFINITIONS){const matches=records.filter(r=>definition.test(r.metrics)).sort((a,b)=>definition.severity(b.metrics)-definition.severity(a.metrics)),distinctWindows=new Set(matches.map(record=>record.windowIndex));if(matches.length<2||distinctWindows.size<2)continue;const chosen=matches.find(record=>findings.every(item=>Math.abs(item.record.time-record.time)>1.4));if(chosen)findings.push({definition,record:chosen,repeatCount:distinctWindows.size});if(findings.length===3)break;}
   return findings;
 }
 
@@ -255,14 +264,15 @@ async function evidenceFrame(video, record, definition) {
 }
 
 export async function analyzePlayer(source,candidate,onProgress=()=>{}) {
-  const sampleCount=clamp(Math.ceil(source.duration/4),24,54),times=evenlySpaced(source.duration,sampleCount,.015),records=[];let last=null,totalIdentity=0;
+  const centers=movementWindowCenters(candidate,source.duration),windowCount=centers.length,times=centers.flatMap((center,windowIndex)=>[-.28,0,.28].map(offset=>({time:clamp(center+offset,0,Math.max(0,source.duration-.03)),windowIndex}))),sampleCount=times.length,records=[];let last=null,lastWindow=-1,totalIdentity=0;
   for(let i=0;i<times.length;i++){
-    const result=await detectFrame(source.video,times[i]),match=closestPose(result,times[i],candidate,last);
-    if(match){const record=match.item;record.metrics=metrics(record,records.at(-1));records.push(record);last={...record.center,scale:record.scale};totalIdentity+=Math.max(0,1-match.score/1.05);}
+    const sample=times[i];if(sample.windowIndex!==lastWindow){last=null;lastWindow=sample.windowIndex;}
+    const result=await detectFrame(source.video,sample.time),match=closestPose(result,sample.time,candidate,last);
+    if(match){const record=match.item,previous=records.at(-1)?.windowIndex===sample.windowIndex?records.at(-1):null;record.windowIndex=sample.windowIndex;record.metrics=metrics(record,previous);records.push(record);last={...record.center,scale:record.scale};totalIdentity+=Math.max(0,1-match.score/1.45);}
     onProgress(5+Math.round((i+1)/times.length*76),`Reviewing movement · ${i+1} of ${times.length} sampled frames`);
     await new Promise(resolve=>setTimeout(resolve,0));
   }
-  if(records.length<Math.max(6,sampleCount*.22))throw new Error("The selected player could not be followed consistently enough to create a report.");
+  if(records.length<Math.max(5,sampleCount*.14))throw analysisFailure("PLAYER_TRACK_LOST","We found the selected player at first, but could not follow them through enough movement windows.");
   const findings=selectFindings(records),checks=[],frames=[],interval=source.duration/Math.max(1,sampleCount-1);
   for(let i=0;i<findings.length;i++){
     const {definition,record,repeatCount}=findings[i],confidence=Math.round(clamp((record.visibility*.55)+(Math.min(1,repeatCount/4)*25)+(records.length/sampleCount*20),35,94));
@@ -276,5 +286,5 @@ export async function analyzePlayer(source,candidate,onProgress=()=>{}) {
   if(!findings.length)checks.push({status:"unknown",label:"Reportable repeated issues",measured:"No movement pattern crossed the repeat-and-visibility threshold",feedback:"The analyzer does not create a fault from a single unclear frame."});
   const uniqueGoals=[...new Set(findings.map(item=>item.definition.goal))],uniqueDrills=[...new Set(findings.map(item=>item.definition.drill))];
   const id=crypto.randomUUID();onProgress(98,"Saving the movement report");
-  return {id,analysisVersion:8,analysisMode:"browser-pose-multi-window-v1",model:"MediaPipe Pose Landmarker Lite",name:`Analysis · ${new Intl.DateTimeFormat("en",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date())}`,movementName:"Full-match movement review",createdAt:new Date().toISOString(),selectedPlayer:candidate.label,playerBBox:candidate.bbox,coverage:continuity,movementConfidence,tracking:{continuity,averageVisibility:visibility,identityConsistency},movementMetrics:{sampledFrames:sampleCount,trackedFrames:records.length,reviewedWindows:frames.length},checks,frames,events:frames.map(frame=>({time:frame.time,start:frame.start,end:frame.end,label:frame.label,confidence:frame.confidence,windowId:frame.windowId})),overall:findings.length?`${findings.length} repeated movement ${findings.length===1?"pattern":"patterns"} to review`:"No repeated movement issue met the reporting threshold",goal:uniqueGoals[0]||"Keep reviewing movement quality across future matches",exercises:uniqueDrills,videoStorage:"indexeddb",sourceFileName:source.file?.name||"Match video",sourceFileSize:source.file?.size||0,duration:source.duration};
+  return {id,analysisVersion:9,analysisMode:"browser-pose-distinct-window-v2",model:"MediaPipe Pose Landmarker Lite",name:`Analysis · ${new Intl.DateTimeFormat("en",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date())}`,movementName:"Full-match movement review",createdAt:new Date().toISOString(),selectedPlayer:candidate.label,playerBBox:candidate.bbox,coverage:continuity,movementConfidence,tracking:{continuity,averageVisibility:visibility,identityConsistency},movementMetrics:{sampledFrames:sampleCount,trackedFrames:records.length,reviewedWindows:frames.length,movementWindows:windowCount},checks,frames,events:frames.map(frame=>({time:frame.time,start:frame.start,end:frame.end,label:frame.label,confidence:frame.confidence,windowId:frame.windowId})),overall:findings.length?`${findings.length} repeated movement ${findings.length===1?"pattern":"patterns"} to review`:"No repeated movement issue met the reporting threshold",goal:uniqueGoals[0]||"Keep reviewing movement quality across future matches",exercises:uniqueDrills,videoStorage:"indexeddb",sourceFileName:source.file?.name||"Match video",sourceFileSize:source.file?.size||0,duration:source.duration};
 }

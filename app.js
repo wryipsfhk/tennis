@@ -89,7 +89,7 @@ async function refreshStorageStatus() {
     if (response.ok) renderStorageStatus(await response.json());
   } catch {}
 }
-function loadClientAnalyzer(){return clientAnalyzerPromise||(clientAnalyzerPromise=import('./client-analyzer.js'));}
+function loadClientAnalyzer(){return clientAnalyzerPromise||(clientAnalyzerPromise=import('./client-analyzer.js?v=20260821-1'));}
 let analysisCapabilityChecked=false;
 async function refreshAnalysisCapability(force=false) {
   const element=document.querySelector('#analysisCapability');
@@ -196,7 +196,18 @@ function showToast(message) {
   toast.textContent = message; toast.classList.add('show'); clearTimeout(showToast.timer);
   showToast.timer = setTimeout(() => toast.classList.remove('show'), 2600);
 }
-function setError(id, message = '') { document.querySelector(id).textContent = message; }
+function setError(id, message = '') { const box=document.querySelector(id);box.textContent=message;if(id==='#analysisError'&&!message)box.classList.remove('analysis-error-card'); }
+function friendlyAnalysisFailure(error,stage='analysis'){
+  const code=error?.code||'',message=String(error?.message||'');
+  if(code==='NO_PLAYER_TRACK'||/same player|player pose stayed visible/i.test(message))return{title:"We couldn't identify one player clearly enough",message:'The player was too small, out of frame, blocked, or changed position too sharply between the sampled moments.',tips:['Use a relatively fixed camera position.','Keep the player’s full body visible and large enough to see.','Trim long sections where the player is off court or blocked.']};
+  if(code==='PLAYER_TRACK_LOST'||/could not be followed|followed consistently/i.test(message))return{title:'We lost track of the selected player',message:'The player was visible at first, but not clearly enough across separate movement windows to create trustworthy advice.',tips:['Choose the player thumbnail that matches you.','Use footage with shoulders, hips, knees, and feet in frame.','Avoid strong camera movement, zooming, and long obstructions.']};
+  if(/120 MB|no larger than/i.test(message))return{title:'This video is too large to analyze here',message:'AcePoint processes sampled frames in your browser, so videos must be 120 MB or smaller.',tips:['Export a shorter clip from the same match.','Use a lower video resolution or compression setting.']};
+  if(/45 minutes|shorter/i.test(message))return{title:'This video is longer than the current limit',message:'Browser analysis supports videos up to 45 minutes.',tips:['Trim the video to the part of the match you want to review.','Keep several rallies so AcePoint can compare different movement windows.']};
+  if(/decode|readable video frames|duration could not/i.test(message))return{title:'This browser could not read the video',message:'The file opened, but its video format or encoding could not be decoded.',tips:['Try MP4 with H.264 video.','Re-export the video, then upload the new copy.']};
+  if(/WebAssembly|worker features|pose model|worker stopped|fetch/i.test(message))return{title:'Movement analysis is not available in this browser right now',message:'The browser could not load or run the on-device movement model.',tips:['Check your connection and reload AcePoint.','Try the latest version of Chrome, Edge, or Safari on a laptop or desktop.']};
+  return{title:stage==='players'?'Player identification did not finish':'Movement analysis did not finish',message:'AcePoint stopped because it could not gather enough reliable body-position evidence. No report or advice was created.',tips:['Try a steadier video with the player clearly visible.','Keep more of the player’s body inside the frame.','Upload a shorter section with fewer obstructions.']};
+}
+function showAnalysisFailure(error,stage){const content=friendlyAnalysisFailure(error,stage),box=document.querySelector('#analysisError');box.classList.add('analysis-error-card');box.innerHTML=`<strong>${escapeHtml(content.title)}</strong><span>${escapeHtml(content.message)}</span><ul>${content.tips.map(tip=>`<li>${escapeHtml(tip)}</li>`).join('')}</ul>`;}
 function openConfirm(title, message, action) {
   document.querySelector('#confirmTitle').textContent = title;
   document.querySelector('#confirmMessage').textContent = message;
@@ -242,12 +253,14 @@ function openApp() {
 }
 
 function scoreText(match) {
-  return match.sets.map(set => `${set.player}–${set.opponent}${set.tiebreak ? ` (${set.tiebreak.player}–${set.tiebreak.opponent})` : ''}`).join(' · ');
+  const score=(match.sets||[]).map(set => `${set.player}–${set.opponent}${set.tiebreak ? ` (${set.tiebreak.player}–${set.tiebreak.opponent})` : ''}`).join(' · ');
+  return match.scoreFormat==='custom-points'?`${score} · First to ${match.customScoring?.target||'custom'}`:score;
 }
+function scoreFormatLabel(match){return match.scoreFormat==='custom-points'?`Custom points · first to ${match.customScoring?.target||'—'}, win by ${match.customScoring?.winBy||1}`:'';}
 function matchCard(match) {
   const note = match.note ? `<p>${escapeHtml(match.note)}</p>` : '';
   return `<button type="button" class="real-match-card" data-match-id="${escapeHtml(match.id)}">
-    <div><span>${escapeHtml(formatDate(match.date))} · ${escapeHtml(englishValue(match.matchType,'Singles'))} · ${escapeHtml(englishValue(match.surface))}</span><h3>vs ${escapeHtml(match.opponent)}</h3></div>
+    <div><span>${escapeHtml(formatDate(match.date))} · ${escapeHtml(englishValue(match.matchType,'Singles'))} · ${escapeHtml(englishValue(match.surface))}${scoreFormatLabel(match)?` · ${escapeHtml(scoreFormatLabel(match))}`:''}</span><h3>vs ${escapeHtml(match.opponent)}</h3></div>
     <div class="real-score"><b class="${isWin(match) ? 'won' : ''}">${escapeHtml(englishValue(match.result))}</b><strong>${escapeHtml(scoreText(match))}</strong><span class="match-emoji">${satisfactionEmoji(match.satisfaction)}</span></div>
     ${note}<i class="card-arrow">View Details →</i></button>`;
 }
@@ -454,7 +467,7 @@ function openMatchDetail(matchId, fromDay='') {
   const match=currentAccount()?.matches.find(item=>String(item.id)===String(matchId)); if(!match)return;
   currentDetailMatchId=String(match.id); currentDayContext=fromDay;
   document.querySelector('#backToDay').hidden=!fromDay; document.querySelector('#detailTitle').textContent=`vs ${match.opponent}`;
-  document.querySelector('#detailMeta').textContent=`${formatDate(match.date)} · ${englishValue(match.matchType,'Singles')} · ${englishValue(match.surface)}`;
+  document.querySelector('#detailMeta').textContent=`${formatDate(match.date)} · ${englishValue(match.matchType,'Singles')} · ${englishValue(match.surface)}${scoreFormatLabel(match)?` · ${scoreFormatLabel(match)}`:''}`;
   document.querySelector('#detailScore').innerHTML=`<span>${escapeHtml(englishValue(match.result))}</span><strong>${escapeHtml(scoreText(match))}</strong>`;
   document.querySelector('#detailSatisfaction').textContent=satisfactionEmoji(match.satisfaction);
   const note=document.querySelector('#detailNote'); note.hidden=!match.note; note.textContent=match.note||'';
@@ -463,21 +476,36 @@ function openMatchDetail(matchId, fromDay='') {
 function resetMatchForm() {
   editingMatchId=''; const form=document.querySelector('#matchForm'); form.reset(); document.querySelector('#matchDate').value=localDateValue();
   document.querySelectorAll('.tiebreak-inputs').forEach(row=>row.hidden=true); document.querySelector('#scoreError').hidden=true;
+  setScoreFormat('standard');
   document.querySelector('#matchSubmitButton').innerHTML='Save Match <span>→</span>'; document.querySelector('#cancelMatchEdit').hidden=true;
+}
+function setScoreFormat(format){
+  const custom=format==='custom-points',standardFields=document.querySelector('#standardScoreFields'),customFields=document.querySelector('#customScoreFields');
+  document.querySelector(`input[name="scoreFormat"][value="${custom?'custom-points':'standard'}"]`).checked=true;
+  standardFields.hidden=custom;customFields.hidden=!custom;
+  standardFields.querySelectorAll('input').forEach(input=>input.disabled=custom);
+  customFields.querySelectorAll('input').forEach(input=>input.disabled=!custom);
+  document.querySelector('#scoreError').hidden=true;
 }
 function editCurrentMatch() {
   const match=currentAccount()?.matches.find(item=>String(item.id)===currentDetailMatchId); if(!match)return; resetMatchForm(); editingMatchId=String(match.id);
   document.querySelector('#opponent').value=match.opponent; document.querySelector('#matchDate').value=match.date; document.querySelector('#surface').value=match.surface;
   document.querySelector(`input[name="matchType"][value="${match.matchType||'Singles'}"]`).checked=true; document.querySelector(`input[name="satisfaction"][value="${satisfactionEmoji(match.satisfaction)}"]`).checked=true; document.querySelector('#matchNote').value=match.note||'';
-  const blocks=[...document.querySelectorAll('.set-block')]; match.sets.forEach((set,index)=>{const block=blocks[index];block.querySelector('.player-score').value=set.player;block.querySelector('.opponent-score').value=set.opponent;if(set.tiebreak){block.querySelector('.tiebreak-check').checked=true;block.querySelector('.tiebreak-inputs').hidden=false;block.querySelector('.tiebreak-player').value=set.tiebreak.player;block.querySelector('.tiebreak-opponent').value=set.tiebreak.opponent;}});
+  const format=match.scoreFormat==='custom-points'?'custom-points':'standard';setScoreFormat(format);
+  if(format==='custom-points'){const score=match.sets?.[0]||{};document.querySelector('#customTarget').value=match.customScoring?.target||10;document.querySelector('#customWinBy').value=match.customScoring?.winBy||2;document.querySelector('#customPlayerScore').value=score.player??'';document.querySelector('#customOpponentScore').value=score.opponent??'';}
+  else{const blocks=[...document.querySelectorAll('#standardScoreFields .set-block')];(match.sets||[]).forEach((set,index)=>{const block=blocks[index];if(!block)return;block.querySelector('.player-score').value=set.player;block.querySelector('.opponent-score').value=set.opponent;if(set.tiebreak){block.querySelector('.tiebreak-check').checked=true;block.querySelector('.tiebreak-inputs').hidden=false;block.querySelector('.tiebreak-player').value=set.tiebreak.player;block.querySelector('.tiebreak-opponent').value=set.tiebreak.opponent;}});}
   document.querySelector('#matchSubmitButton').innerHTML='Save Changes <span>→</span>'; document.querySelector('#cancelMatchEdit').hidden=false; document.querySelector('#matchDetailModal').close(); showView('new-match');
 }
 function showScoreError(message){const box=document.querySelector('#scoreError');document.querySelector('#scoreErrorText').textContent=message;box.hidden=false;box.scrollIntoView({behavior:'smooth',block:'center'});}
 function collectValidSets(){
-  const raw=[...document.querySelectorAll('.set-block')].map((block,index)=>({index,player:block.querySelector('.player-score').value,opponent:block.querySelector('.opponent-score').value,hasTb:block.querySelector('.tiebreak-check').checked,tbPlayer:block.querySelector('.tiebreak-player').value,tbOpponent:block.querySelector('.tiebreak-opponent').value})).filter(s=>s.player!==''||s.opponent!=='');
-  if(!raw.length){showScoreError('Enter at least two valid sets.');return null;} if(raw.some((s,i)=>s.index!==i)){showScoreError('Enter each set in order without skipping a set.');return null;} const sets=[];
-  for(const set of raw){const label=`Set ${set.index+1}`;if(set.player===''||set.opponent===''){showScoreError(`${label}: enter the game count for both players.`);return null;}const p=Number(set.player),o=Number(set.opponent),high=Math.max(p,o),low=Math.min(p,o),diff=high-low;if(p===o){showScoreError(`${label} cannot end in a tie.`);return null;}if(high<6){showScoreError(`${label} is invalid: the winner needs at least 6 games.`);return null;}if(high===7&&low===6){if(!set.hasTb||set.tbPlayer===''||set.tbOpponent===''){showScoreError(`${label} ended 7–6, so enter both tiebreak scores.`);return null;}const tp=Number(set.tbPlayer),to=Number(set.tbOpponent);if(Math.max(tp,to)<7||Math.abs(tp-to)<2){showScoreError(`${label} tiebreak is invalid: the winner needs at least 7 points and a 2-point lead.`);return null;}if((p>o&&tp<=to)||(o>p&&to<=tp)){showScoreError(`${label}: the tiebreak winner must match the set winner.`);return null;}sets.push({player:String(p),opponent:String(o),tiebreak:{player:String(tp),opponent:String(to)}});}else{if(diff<2){showScoreError(`${label} is invalid: the winner needs at least 6 games and a 2-game lead. A 7–6 set requires a tiebreak score.`);return null;}if(set.hasTb){showScoreError(`${label}: enter a tiebreak score only when the set score is 7–6.`);return null;}sets.push({player:String(p),opponent:String(o)});}}
-  let won=0,lost=0;sets.forEach(set=>Number(set.player)>Number(set.opponent)?won++:lost++);if(won<2&&lost<2){showScoreError('In a best-of-three match, one player must win at least two sets.');return null;}return{sets,won,lost};
+  const raw=[...document.querySelectorAll('#standardScoreFields .set-block')].map((block,index)=>({index,player:block.querySelector('.player-score').value,opponent:block.querySelector('.opponent-score').value,hasTb:block.querySelector('.tiebreak-check').checked,tbPlayer:block.querySelector('.tiebreak-player').value,tbOpponent:block.querySelector('.tiebreak-opponent').value}));
+  const result=AcePointScoring.validateStandardSets(raw);if(!result.ok){showScoreError(result.error);return null;}return result;
+}
+function collectValidScore(){
+  const format=document.querySelector('input[name="scoreFormat"]:checked')?.value||'standard';
+  if(format==='standard')return collectValidSets();
+  const result=AcePointScoring.validateCustomPoints({player:document.querySelector('#customPlayerScore').value,opponent:document.querySelector('#customOpponentScore').value,target:document.querySelector('#customTarget').value,winBy:document.querySelector('#customWinBy').value});
+  if(!result.ok){showScoreError(result.error);return null;}return result;
 }
 
 loginForm.addEventListener('submit',async event=>{event.preventDefault();setError('#loginError');const email=document.querySelector('#email').value.trim().toLowerCase(),button=event.currentTarget.querySelector('[type="submit"]');button.disabled=true;try{const result=await authRequest({action:'login',email,passwordHash:await hashPassword(document.querySelector('#password').value)});rememberSession(result.token,email,document.querySelector('#keepSignedIn').checked);accountsCache={[email]:result.account};openApp();showToast('Signed in');}catch(error){setError('#loginError',error.message);}finally{button.disabled=false;}});
@@ -517,9 +545,9 @@ async function analyzeSelectedPlayer(candidate){
     analysisVideoUrls.set(result.id,pendingVideoSource.url);
     await updateAccount(account=>{account.analyses=account.analyses||[];account.analyses.unshift(result);});
     renderAnalysis(result);renderAnalysisHistory();document.querySelector('#playerSelection').hidden=true;button.hidden=false;
-    try{await uploadAnalysisVideo(result,pendingVideoSource.file,(ratio,part,total)=>setAnalysisProgress(88+ratio*11,`Securely syncing video part ${part} of ${total}`,'Analysis complete · syncing across devices'));result.videoStorage='cloud';result.cloudVideo=true;result.videoSyncedAt=new Date().toISOString();await updateAccount(account=>{const saved=account.analyses.find(item=>item.id===result.id);if(saved)Object.assign(saved,{videoStorage:result.videoStorage,cloudVideo:true,videoSyncedAt:result.videoSyncedAt,videoFileName:result.videoFileName});});setAnalysisProgress(100,'Report and private video synced across your devices','Analysis complete');showToast('Analysis and video synced securely');}
+    try{await uploadAnalysisVideo(result,pendingVideoSource.file,(ratio,part,total)=>setAnalysisProgress(88+ratio*11,`Securely syncing video part ${part} of ${total}`,'Analysis complete · syncing across devices'));result.videoStorage='cloud';result.cloudVideo=true;result.videoSyncedAt=new Date().toISOString();await updateAccount(account=>{const saved=account.analyses.find(item=>item.id===result.id);if(saved)Object.assign(saved,{videoStorage:result.videoStorage,cloudVideo:true,videoSyncedAt:result.videoSyncedAt,videoFileName:result.videoFileName});});renderAnalysis(result);renderAnalysisHistory();setAnalysisProgress(100,'Report and private video synced across your devices','Analysis complete');showToast('Analysis and video synced securely');}
     catch(syncError){setAnalysisProgress(100,'Report synced · video remains safely stored on this device','Analysis complete');setError('#analysisError',`Your report is saved, but the video could not sync yet: ${syncError.message}`);showToast('Report saved; video sync needs another try');}
-  }catch(error){setError('#analysisError',error.message||'The in-browser movement analysis could not be completed. Please try again.');}
+  }catch(error){showAnalysisFailure(error,'analysis');}
   finally{loading.hidden=true;button.disabled=false;}
 }
 document.querySelector('#motionVideo').addEventListener('change',event=>{
@@ -542,7 +570,7 @@ document.querySelector('#motionForm').addEventListener('submit',async event=>{
     if(candidates.length===1){await analyzeSelectedPlayer(candidates[0]);return;}
     document.querySelector('#playerCandidates').innerHTML=candidates.map((candidate,index)=>`<label class="player-candidate"><input type="radio" name="selectedPlayer" value="${index}" ${index===0?'checked':''}/><span><img src="${escapeHtml(candidate.thumbnail)}" alt="${escapeHtml(candidate.label)}"/><strong>${escapeHtml(candidate.label)}</strong><small>Seen in ${candidate.detectionFrames} sampled frames</small></span></label>`).join('');
     document.querySelector('#playerSelection').hidden=false;button.hidden=true;showToast('Select the player to analyze');
-  }catch(error){setError('#analysisError',error.message||'Player identification could not be completed. Please try again.');}
+  }catch(error){showAnalysisFailure(error,'players');}
   finally{loading.hidden=true;button.disabled=false;}
 });
 document.querySelector('#confirmPlayerButton').addEventListener('click',()=>{const selected=document.querySelector('input[name="selectedPlayer"]:checked');if(!selected||!pendingVideoAnalysis)return;analyzeSelectedPlayer(pendingVideoAnalysis.candidates[Number(selected.value)]);});
@@ -554,8 +582,9 @@ function closeAnalysisName(){renamingAnalysisId='';document.querySelector('#anal
 document.querySelector('#analysisNameClose').addEventListener('click',closeAnalysisName);document.querySelector('#analysisNameModal').addEventListener('cancel',()=>{renamingAnalysisId='';});document.querySelector('#analysisNameForm').addEventListener('submit',event=>{event.preventDefault();const name=document.querySelector('#analysisNameInput').value.trim();if(!name||!renamingAnalysisId)return;updateAccount(account=>{const analysis=account.analyses.find(item=>item.id===renamingAnalysisId);if(analysis)analysis.name=name;});const renamedId=renamingAnalysisId;closeAnalysisName();renderAnalysisHistory();if(currentAnalysisId===renamedId){const analysis=currentAccount()?.analyses?.find(item=>item.id===renamedId);if(analysis)renderAnalysis(analysis);}showToast('Analysis name saved');});
 document.querySelector('#analysisHistory').addEventListener('click',event=>{const open=event.target.closest('[data-analysis-open]');if(open){const analysis=currentAccount()?.analyses?.find(item=>item.id===open.dataset.analysisOpen);if(analysis){renderAnalysis(analysis);document.querySelector('#analysisResult').scrollIntoView({behavior:'smooth',block:'start'});}return;}const rename=event.target.closest('[data-analysis-rename]');if(rename){const analysis=currentAccount()?.analyses?.find(item=>item.id===rename.dataset.analysisRename);if(!analysis)return;renamingAnalysisId=analysis.id;document.querySelector('#analysisNameInput').value=analysis.name||analysisDateLabel(analysis);document.querySelector('#analysisNameModal').showModal();document.querySelector('#analysisNameInput').select();return;}const remove=event.target.closest('[data-analysis-delete]');if(remove){const id=remove.dataset.analysisDelete;openConfirm('Delete this video analysis?','The private video, report, and movement frames will be permanently removed from every device.',async()=>{try{const response=await fetch(`${CLOUD_ENDPOINTS.video}/${encodeURIComponent(id)}`,{method:'DELETE',headers:authHeaders()});if(!response.ok&&response.status!==404){const result=await response.json().catch(()=>({}));throw new Error(result.error||'The cloud video could not be deleted.');}await updateAccount(account=>account.analyses=account.analyses.filter(item=>item.id!==id));const analyzer=await loadClientAnalyzer();await analyzer.deleteAnalysisVideo(id);}catch(error){showToast(error.message||'Analysis could not be deleted');return;}const url=analysisVideoUrls.get(id);if(url?.startsWith('blob:'))URL.revokeObjectURL(url);analysisVideoUrls.delete(id);if(currentAnalysisId===id){currentAnalysisId='';activeMistakeSegments=[];document.querySelector('.motion-layout').classList.remove('has-report');document.querySelector('#analysisResult').innerHTML='<div class="analysis-empty"><span>◎</span><h2>Waiting for a match</h2><p>Upload a video to create a new movement analysis.</p></div>';}renderAnalysisHistory();showToast('Analysis deleted from every device');});}});
 document.querySelector('#logoutButton').addEventListener('click',()=>{clearSession();appShell.hidden=true;loginPage.hidden=false;loginForm.reset();window.scrollTo({top:0,behavior:'auto'});});
+document.querySelectorAll('input[name="scoreFormat"]').forEach(input=>input.addEventListener('change',()=>setScoreFormat(input.value)));
 document.querySelectorAll('.tiebreak-check').forEach(input=>input.addEventListener('change',()=>{const row=input.closest('.set-block').querySelector('.tiebreak-inputs');row.hidden=!input.checked;if(!input.checked)row.querySelectorAll('input').forEach(field=>field.value='');}));document.querySelector('#cancelMatchEdit').addEventListener('click',()=>{resetMatchForm();showView('overview');});
-document.querySelector('#matchForm').addEventListener('submit',event=>{event.preventDefault();const valid=collectValidSets();if(!valid)return;const wasEditing=Boolean(editingMatchId);const editId=editingMatchId;const note=document.querySelector('#matchNote').value.trim();const id=editId||String(Date.now());const match={id:Number(id),opponent:document.querySelector('#opponent').value.trim(),date:document.querySelector('#matchDate').value,surface:document.querySelector('#surface').value,sets:valid.sets,matchType:document.querySelector('input[name="matchType"]:checked').value,satisfaction:document.querySelector('input[name="satisfaction"]:checked').value,note,result:valid.won>valid.lost?'Win':'Loss'};let suggestions=0;updateAccount(account=>{if(wasEditing){const index=account.matches.findIndex(item=>String(item.id)===editId);if(index>=0)account.matches[index]=match;}else account.matches.push(match);suggestions=generateExercises(note,match.id,account);});resetMatchForm();renderData();renderCalendar();renderExercises();showView('overview');showToast(wasEditing?'Match updated':suggestions?`Match saved and ${suggestions} training ${suggestions===1?'suggestion was':'suggestions were'} created`:'Match saved');openMatchDetail(match.id);});
+document.querySelector('#matchForm').addEventListener('submit',event=>{event.preventDefault();const valid=collectValidScore();if(!valid)return;const wasEditing=Boolean(editingMatchId);const editId=editingMatchId;const note=document.querySelector('#matchNote').value.trim();const id=editId||String(Date.now());const match={id:Number(id),opponent:document.querySelector('#opponent').value.trim(),date:document.querySelector('#matchDate').value,surface:document.querySelector('#surface').value,sets:valid.sets,scoreFormat:valid.scoreFormat,matchType:document.querySelector('input[name="matchType"]:checked').value,satisfaction:document.querySelector('input[name="satisfaction"]:checked').value,note,result:valid.won>valid.lost?'Win':'Loss'};if(valid.customScoring)match.customScoring=valid.customScoring;let suggestions=0;updateAccount(account=>{if(wasEditing){const index=account.matches.findIndex(item=>String(item.id)===editId);if(index>=0)account.matches[index]=match;}else account.matches.push(match);suggestions=generateExercises(note,match.id,account);});resetMatchForm();renderData();renderCalendar();renderExercises();showView('overview');showToast(wasEditing?'Match updated':suggestions?`Match saved and ${suggestions} training ${suggestions===1?'suggestion was':'suggestions were'} created`:'Match saved');openMatchDetail(match.id);});
 
 document.querySelector('#matchDate').value=localDateValue();document.querySelector('#scheduleDate').min=localDateValue();document.querySelector('#goalDate').min=localDateValue();
 async function initializeApp() {

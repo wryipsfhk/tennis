@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "build": "mkdir -p dist && cp index.html app.js client-analyzer.js pose-worker.js styles.css dist/"
+    "build": "mkdir -p dist && cp index.html app.js scoring.js client-analyzer.js pose-worker.js styles.css dist/"
   },
   "dependencies": {
     "@netlify/blobs": "10.7.13"

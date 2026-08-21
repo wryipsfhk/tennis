@@ -6,7 +6,6 @@ const WASM_ROOT = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wa
 const MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task";
 let poseLandmarker;
 let initialization;
-let inferenceTimestamp = 0;
 
 async function initialize() {
   if (poseLandmarker) return;
@@ -15,11 +14,10 @@ async function initialize() {
       const vision = await FilesetResolver.forVisionTasks(WASM_ROOT);
       poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: MODEL_URL, delegate: "CPU" },
-        runningMode: "VIDEO",
+        runningMode: "IMAGE",
         numPoses: 4,
-        minPoseDetectionConfidence: 0.45,
-        minPosePresenceConfidence: 0.45,
-        minTrackingConfidence: 0.45
+        minPoseDetectionConfidence: 0.35,
+        minPosePresenceConfidence: 0.35
       });
     })();
   }
@@ -35,8 +33,7 @@ self.addEventListener("message", async event => {
       return;
     }
     if (type !== "detect" || !bitmap) throw new Error("Invalid pose-worker request.");
-    inferenceTimestamp += 34;
-    const result = poseLandmarker.detectForVideo(bitmap, inferenceTimestamp);
+    const result = poseLandmarker.detect(bitmap);
     bitmap.close();
     self.postMessage({
       id,
