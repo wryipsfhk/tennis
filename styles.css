@@ -236,6 +236,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
 .landing-final-actions{position:relative;z-index:2;display:flex;align-items:center;gap:12px}
 .landing-final-signin{min-height:43px;padding:0 20px;border:1px solid rgba(255,255,255,.32);border-radius:13px;background:transparent;color:#fff;font-size:12px;font-weight:750}
 .landing-final-signin:hover{background:rgba(255,255,255,.08)}
+.login-page.landing-page .landing-actions>a{min-height:46px;padding:0 18px;border:1.5px solid #8eb8aa;border-radius:13px;background:rgba(255,255,255,.74);color:var(--green);font-weight:800;box-shadow:0 7px 20px rgba(23,61,54,.07);transition:border-color .18s ease,background .18s ease,box-shadow .18s ease,transform .18s ease}
+.login-page.landing-page .landing-actions>a:hover{border-color:var(--green);background:#fff;box-shadow:0 10px 24px rgba(23,61,54,.11);transform:translateY(-1px)}
+.login-page.landing-page .landing-actions>a:focus-visible{outline:3px solid rgba(23,110,92,.22);outline-offset:3px}
+.login-page.landing-page .landing-actions>a span{display:grid;place-items:center;width:22px;height:22px;margin-left:4px;border-radius:50%;background:var(--mint);color:var(--green)}
 .first-to-target-toggle{grid-column:1/-1;display:flex;align-items:center;gap:10px;min-height:48px;margin:4px 0 8px;padding:10px 13px;border:1px solid #d8e3de;border-radius:13px;background:#f6f9f7;cursor:pointer}
 .first-to-target-toggle input{width:18px;height:18px;accent-color:var(--green)}
 .first-to-target-toggle span{display:grid;gap:2px;color:var(--ink);font-size:11px;font-weight:750}
@@ -250,4 +254,4 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-vis
   .landing-process--compact{padding:62px 20px 66px}.landing-process--compact .process-disclosure{display:grid;grid-template-columns:1fr;gap:10px}.landing-process--compact .process-disclosure>li{padding:0}.process-disclosure summary{min-height:0;padding:19px 46px 18px 18px}.landing-process--compact .process-disclosure details>p{padding:0 18px 19px 67px}
   .landing-final-cta{min-height:320px}.landing-final-cta h2{font-size:42px}.landing-final-actions{flex-direction:column}.landing-final-signin{min-width:164px}
 }
-@media(prefers-reduced-motion:reduce){.feature-disclosure summary,.feature-disclosure summary:after{transition:none}}
+@media(prefers-reduced-motion:reduce){.feature-disclosure summary,.feature-disclosure summary:after,.login-page.landing-page .landing-actions>a{transition:none}}
